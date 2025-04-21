@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode - reduced brightness, more contrast */
+    --background: 210 30% 98%; /* Slightly off-white with a blue tint */
+    --foreground: 210 100% 25%; /* Darker text for better contrast */
+
+    --card: 0 0% 100%; /* Pure white cards */
+    --card-foreground: 210 100% 25%; /* Dark text on cards */
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 100% 25%;
+
+    --primary: 210 100% 35%; /* Deeper blue for primary elements */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 30% 92%; /* Softer secondary */
+    --secondary-foreground: 210 60% 30%; /* Darker text on secondary */
+
+    --muted: 210 30% 92%; /* Softer muted background */
+    --muted-foreground: 210 50% 40%; /* More visible muted text */
+
+    --accent: 210 30% 90%; /* More distinct accent */
+    --accent-foreground: 210 60% 30%;
+
+    --destructive: 0 85% 55%; /* Slightly toned down red */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 30% 85%; /* More visible borders */
+    --input: 210 30% 85%;
+    --ring: 210 100% 35%; /* Match primary */
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Darker dark mode */
+    --background: 210 50% 10%; /* Much darker background */
+    --foreground: 210 15% 97%; /* Slightly off-white text for less eye strain */
+
+    --card: 210 50% 12%; /* Slightly lighter than background */
+    --card-foreground: 210 15% 97%;
+
+    --popover: 210 50% 8%; /* Even darker popovers */
+    --popover-foreground: 210 15% 97%;
+
+    --primary: 210 90% 55%; /* More vibrant primary blue */
+    --primary-foreground: 210 15% 97%;
+
+    --secondary: 210 50% 15%; /* Darker secondary */
+    --secondary-foreground: 210 15% 97%;
+
+    --muted: 210 50% 15%;
+    --muted-foreground: 210 40% 70%; /* More visible muted text in dark mode */
+
+    --accent: 210 50% 18%; /* More pronounced accent */
+    --accent-foreground: 210 15% 97%;
+
+    --destructive: 0 70% 45%; /* Deeper red in dark mode */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 50% 25%; /* More visible borders */
+    --input: 210 50% 25%;
+    --ring: 210 90% 55%; /* Match primary */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
