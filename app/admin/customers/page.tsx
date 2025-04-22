@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { 
@@ -32,17 +32,12 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
-  Eye,
   Upload,
   Copy,
-  Mail,
   Lock,
-  UserCheck,
-  UserX,
   Shield,
-  ShieldAlert,
-  ShieldCheck,
-  User
+  User as UserIcon,
+  Loader2
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -59,170 +54,35 @@ import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 
-// Mock users data
-const users = [
-  {
-    id: "USER001",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    role: "Customer",
-    status: "Active",
-    verified: true,
-    joinedDate: "2023-01-15",
-    lastLogin: "2023-11-28T09:23:42",
-    avatar: "/avatars/avatar-1.png",
-    orders: 12,
-    totalSpent: 1458.99
-  },
-  {
-    id: "USER002",
-    name: "Jane Smith",
-    email: "jane.smith@example.com",
-    role: "Customer",
-    status: "Active",
-    verified: true,
-    joinedDate: "2023-02-21",
-    lastLogin: "2023-11-25T16:45:12",
-    avatar: "/avatars/avatar-2.png",
-    orders: 5,
-    totalSpent: 732.50
-  },
-  {
-    id: "USER003",
-    name: "Robert Johnson",
-    email: "robert.j@example.com",
-    role: "Admin",
-    status: "Active",
-    verified: true,
-    joinedDate: "2022-11-05",
-    lastLogin: "2023-11-27T14:15:33",
-    avatar: "/avatars/avatar-3.png",
-    orders: 0,
-    totalSpent: 0
-  },
-  {
-    id: "USER004",
-    name: "Emily Davis",
-    email: "emily.d@example.com",
-    role: "Customer",
-    status: "Inactive",
-    verified: true,
-    joinedDate: "2023-03-18",
-    lastLogin: "2023-08-02T10:11:22",
-    avatar: "/avatars/avatar-4.png",
-    orders: 3,
-    totalSpent: 259.97
-  },
-  {
-    id: "USER005",
-    name: "Michael Wilson",
-    email: "michael.w@example.com",
-    role: "Customer",
-    status: "Suspended",
-    verified: true,
-    joinedDate: "2023-04-29",
-    lastLogin: "2023-10-15T17:05:41",
-    avatar: "/avatars/avatar-5.png",
-    orders: 8,
-    totalSpent: 1045.23
-  },
-  {
-    id: "USER006",
-    name: "Sarah Thompson",
-    email: "sarah.t@example.com",
-    role: "Staff",
-    status: "Active",
-    verified: true,
-    joinedDate: "2023-01-30",
-    lastLogin: "2023-11-28T11:33:29",
-    avatar: "/avatars/avatar-6.png",
-    orders: 0,
-    totalSpent: 0
-  },
-  {
-    id: "USER007",
-    name: "David Rodriguez",
-    email: "david.r@example.com",
-    role: "Customer",
-    status: "Active",
-    verified: false,
-    joinedDate: "2023-11-20",
-    lastLogin: null,
-    avatar: "/avatars/avatar-7.png",
-    orders: 0,
-    totalSpent: 0
-  },
-  {
-    id: "USER008",
-    name: "Lisa Anderson",
-    email: "lisa.a@example.com",
-    role: "Customer",
-    status: "Active",
-    verified: true,
-    joinedDate: "2023-05-14",
-    lastLogin: "2023-11-26T20:15:09",
-    avatar: "/avatars/avatar-8.png",
-    orders: 6,
-    totalSpent: 823.75
-  },
-  {
-    id: "USER009",
-    name: "Thomas White",
-    email: "thomas.w@example.com",
-    role: "Customer",
-    status: "Inactive",
-    verified: true,
-    joinedDate: "2023-02-09",
-    lastLogin: "2023-07-22T12:45:51",
-    avatar: "/avatars/avatar-9.png",
-    orders: 2,
-    totalSpent: 149.98
-  },
-  {
-    id: "USER010",
-    name: "Jennifer Martinez",
-    email: "jennifer.m@example.com",
-    role: "Customer",
-    status: "Active",
-    verified: true,
-    joinedDate: "2023-03-27",
-    lastLogin: "2023-11-27T19:21:14",
-    avatar: "/avatars/avatar-10.png",
-    orders: 9,
-    totalSpent: 1287.35
-  }
-]
+// API Base URL - should be in your .env file
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-// Roles for filter
+// Simplified roles for filter
 const roles = [
   "All Roles",
   "Customer",
-  "Admin",
-  "Staff"
+  "Admin"
 ]
 
-// User statuses
-const statuses = [
-  { value: "all", label: "All Users" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "suspended", label: "Suspended" },
-  { value: "unverified", label: "Unverified" }
-]
-
-// User interface
+// User interface updated to match backend
 interface User {
-  id: string;
+  _id: string;
   name: string;
   email: string;
-  role: string;
-  status: string;
-  verified: boolean;
-  joinedDate: string;
-  lastLogin: string | null;
-  avatar: string;
-  orders: number;
-  totalSpent: number;
+  phone: string;
+  isAdmin: boolean;
+  street?: string;
+  apartment?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  joinedDate?: string;
+  lastLogin?: string | null;
+  avatar?: string;
+  // These are frontend-only properties we'll add later
+  role?: string;
+  orders?: number;
+  totalSpent?: number;
 }
 
 // New user form interface
@@ -230,8 +90,8 @@ interface NewUser {
   name: string;
   email: string;
   password: string;
-  role: string;
-  status: string;
+  phone: string;
+  isAdmin: boolean;
 }
 
 // Default new user
@@ -239,15 +99,14 @@ const defaultNewUser: NewUser = {
   name: "",
   email: "",
   password: "",
-  role: "Customer",
-  status: "Active"
+  phone: "",
+  isAdmin: false
 }
 
 export default function UsersManagementPage() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [roleFilter, setRoleFilter] = useState("All Roles")
-  const [statusFilter, setStatusFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [newUserDialogOpen, setNewUserDialogOpen] = useState(false)
@@ -256,31 +115,183 @@ export default function UsersManagementPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [newUser, setNewUser] = useState<NewUser>(defaultNewUser)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false)
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    isAdmin: false
+  })
   const itemsPerPage = 8
-  
-  // Get status badge color
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "Active":
-        return {
-          class: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-          icon: <UserCheck className="h-3 w-3 mr-1" />
-        }
-      case "Inactive":
-        return {
-          class: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-          icon: <UserX className="h-3 w-3 mr-1" />
-        }
-      case "Suspended":
-        return {
-          class: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-          icon: <ShieldAlert className="h-3 w-3 mr-1" />
-        }
-      default:
-        return {
-          class: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-          icon: <User className="h-3 w-3 mr-1" />
-        }
+
+  // Function to retrieve the auth token
+  const getAuthToken = () => {
+    try {
+      return localStorage.getItem("token") || ""
+    } catch (err) {
+      console.error("Error accessing localStorage for token:", err)
+      return ""
+    }
+  }
+
+  // Fetch users on component mount
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  // Fetch users from the API
+  const fetchUsers = async () => {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const response = await fetch(`${API_URL}/users/usersTotal`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      
+      // Transform backend data to match our frontend model
+      const transformedUsers: User[] = data.map((user: any) => ({
+        ...user,
+        _id: user._id || user.id,
+        role: user.isAdmin ? "Admin" : "Customer",
+        // Add some default values for the frontend
+        orders: user.orders || 0,
+        totalSpent: user.totalSpent || 0,
+        avatar: user.avatar || `/avatars/avatar-${Math.floor(Math.random() * 10) + 1}.png`
+      }))
+      
+      setUsers(transformedUsers)
+    } catch (err) {
+      console.error("Error fetching users:", err)
+      setError(err instanceof Error ? err.message : "Failed to fetch users")
+      toast.error("Failed to load users")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Get user by ID
+  const getUserById = async (userId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/users/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user: ${response.statusText}`)
+      }
+
+      const userData = await response.json()
+      return {
+        ...userData,
+        role: userData.isAdmin ? "Admin" : "Customer",
+        // Add frontend properties
+        orders: userData.orders || 0,
+        totalSpent: userData.totalSpent || 0
+      }
+    } catch (err) {
+      console.error("Error fetching user:", err)
+      toast.error("Failed to load user details")
+      return null
+    }
+  }
+
+  // Add a new user
+  const createUser = async (userData: NewUser) => {
+    try {
+      const response = await fetch(`${API_URL}/users`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: userData.name,
+          email: userData.email,
+          passwordHash: userData.password, // The backend expects passwordHash
+          phone: userData.phone,
+          isAdmin: userData.isAdmin
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `Failed to create user: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (err) {
+      console.error("Error creating user:", err)
+      throw err
+    }
+  }
+
+  // Update a user
+  const updateUser = async (userId: string, userData: { name: string, email: string, phone: string }) => {
+    try {
+      const response = await fetch(`${API_URL}/users/edit/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(userData)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `Failed to update user: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (err) {
+      console.error("Error updating user:", err)
+      throw err
+    }
+  }
+
+  // Delete a user
+  const deleteUser = async (userId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to delete user: ${response.statusText}`)
+      }
+
+      return true
+    } catch (err) {
+      console.error("Error deleting user:", err)
+      throw err
     }
   }
 
@@ -292,26 +303,17 @@ export default function UsersManagementPage() {
           class: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
           icon: <Shield className="h-3 w-3 mr-1" />
         }
-      case "Staff":
-        return {
-          class: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-          icon: <ShieldCheck className="h-3 w-3 mr-1" />
-        }
       case "Customer":
-        return {
-          class: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-          icon: <User className="h-3 w-3 mr-1" />
-        }
       default:
         return {
           class: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-          icon: <User className="h-3 w-3 mr-1" />
+          icon: <UserIcon className="h-3 w-3 mr-1" />
         }
     }
   }
 
   // Format date
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "Never"
     
     const date = new Date(dateString)
@@ -323,7 +325,7 @@ export default function UsersManagementPage() {
   }
 
   // Format datetime
-  const formatDateTime = (dateString: string | null) => {
+  const formatDateTime = (dateString: string | null | undefined) => {
     if (!dateString) return "Never"
     
     const date = new Date(dateString)
@@ -337,7 +339,7 @@ export default function UsersManagementPage() {
   }
 
   // Format currency
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number = 0) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
@@ -347,7 +349,7 @@ export default function UsersManagementPage() {
   // Handle select all
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedUsers(filteredUsers.map(user => user.id))
+      setSelectedUsers(filteredUsers.map(user => user._id))
     } else {
       setSelectedUsers([])
     }
@@ -363,83 +365,116 @@ export default function UsersManagementPage() {
   }
 
   // Handle add new user
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
+    if (!newUser.name || !newUser.email || !newUser.phone) {
+      toast.error("Please fill in all required fields")
+      return
+    }
+
     setIsSubmitting(true)
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Convert role to isAdmin flag
+      const userData = {
+        ...newUser,
+        isAdmin: newUser.role === "Admin"
+      }
+      
+      await createUser(userData)
       toast.success("User added successfully")
       setNewUserDialogOpen(false)
       setNewUser(defaultNewUser)
+      
+      // Refresh the users list
+      fetchUsers()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create user")
+    } finally {
       setIsSubmitting(false)
-    }, 1000)
+    }
   }
 
+  // Open edit dialog with user data
+  const openEditDialog = async (user: User) => {
+    setCurrentUser(user)
+    
+    // Fetch fresh user data to ensure we have the latest
+    try {
+      const userData = await getUserById(user._id)
+      if (userData) {
+        setCurrentUser(userData)
+        // Set edit form values
+        setEditForm({
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone || "",
+          isAdmin: userData.isAdmin
+        })
+      }
+    } catch (error) {
+      console.error("Error loading user details", error)
+    }
+    
+    setEditUserDialogOpen(true)
+  }
+  
   // Handle edit user
-  const handleUpdateUser = () => {
+  const handleUpdateUser = async () => {
     if (!currentUser) return
     
     setIsSubmitting(true)
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const userData = {
+        name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone
+      }
+      
+      await updateUser(currentUser._id, userData)
       toast.success("User updated successfully")
       setEditUserDialogOpen(false)
-      setIsSubmitting(false)
-    }, 1000)
-  }
-
-  // Handle delete user
-  const handleDeleteUser = () => {
-    if (!currentUser) return
-    
-    setIsSubmitting(true)
-    
-    // Simulate API call
-    setTimeout(() => {
-      toast.success("User deleted successfully")
-      setDeleteUserDialogOpen(false)
-      setCurrentUser(null)
-      setIsSubmitting(false)
       
-      // Remove from selected users if present
-      if (selectedUsers.includes(currentUser.id)) {
-        setSelectedUsers(selectedUsers.filter(id => id !== currentUser.id))
-      }
-    }, 1000)
-  }
-
-  // Handle bulk actions on selected users
-  const handleBulkAction = (action: string) => {
-    if (selectedUsers.length === 0) return
-    
-    // Simulate API call
-    setTimeout(() => {
-      switch (action) {
-        case "activate":
-          toast.success(`${selectedUsers.length} users activated`)
-          break
-        case "deactivate":
-          toast.success(`${selectedUsers.length} users deactivated`)
-          break
-        case "delete":
-          toast.success(`${selectedUsers.length} users deleted`)
-          setSelectedUsers([])
-          break
-      }
-    }, 1000)
-  }
-
-  // Open edit dialog
-  const openEditDialog = (user: User) => {
-    setCurrentUser(user)
-    setEditUserDialogOpen(true)
+      // Refresh the users list
+      fetchUsers()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update user")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
   
   // Open delete dialog
   const openDeleteDialog = (user: User) => {
     setCurrentUser(user)
+    setDeleteConfirmed(false)
     setDeleteUserDialogOpen(true)
+  }
+
+  // Handle delete user
+  const handleDeleteUser = async () => {
+    if (!currentUser || !deleteConfirmed) return
+    
+    setIsSubmitting(true)
+    
+    try {
+      await deleteUser(currentUser._id)
+      toast.success("User deleted successfully")
+      setDeleteUserDialogOpen(false)
+      setCurrentUser(null)
+      
+      // Remove from selected users if present
+      if (selectedUsers.includes(currentUser._id)) {
+        setSelectedUsers(selectedUsers.filter(id => id !== currentUser._id))
+      }
+      
+      // Refresh the users list
+      fetchUsers()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete user")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Filter users
@@ -447,19 +482,14 @@ export default function UsersManagementPage() {
     const matchesSearch = 
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.id.toLowerCase().includes(searchQuery.toLowerCase())
+      user._id.toLowerCase().includes(searchQuery.toLowerCase())
     
     const matchesRole = 
-      roleFilter === "All Roles" || user.role === roleFilter
+      roleFilter === "All Roles" || 
+      (roleFilter === "Admin" && user.isAdmin) ||
+      (roleFilter === "Customer" && !user.isAdmin)
     
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && user.status === "Active") ||
-      (statusFilter === "inactive" && user.status === "Inactive") ||
-      (statusFilter === "suspended" && user.status === "Suspended") ||
-      (statusFilter === "unverified" && !user.verified)
-    
-    return matchesSearch && matchesRole && matchesStatus
+    return matchesSearch && matchesRole
   })
 
   // Pagination
@@ -475,16 +505,10 @@ export default function UsersManagementPage() {
           <h1 className="text-3xl font-bold tracking-tight">Users</h1>
           <p className="text-muted-foreground mt-2">Manage your users and permissions</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
-          <Button onClick={() => setNewUserDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add User
-          </Button>
-        </div>
+        <Button onClick={() => setNewUserDialogOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add User
+        </Button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between">
@@ -498,10 +522,9 @@ export default function UsersManagementPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          
           <Select value={roleFilter} onValueChange={setRoleFilter}>
             <SelectTrigger className="w-full md:w-40">
-              <SelectValue placeholder="Role" />
+              <SelectValue placeholder="Filter by role" />
             </SelectTrigger>
             <SelectContent>
               {roles.map((role) => (
@@ -511,55 +534,6 @@ export default function UsersManagementPage() {
               ))}
             </SelectContent>
           </Select>
-          
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full md:w-40">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              {statuses.map((status) => (
-                <SelectItem key={status.value} value={status.value}>
-                  {status.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="flex gap-2 self-end md:self-auto">
-          {selectedUsers.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Bulk Actions ({selectedUsers.length})
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleBulkAction("activate")}>
-                  <UserCheck className="h-4 w-4 mr-2" />
-                  Activate
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleBulkAction("deactivate")}>
-                  <UserX className="h-4 w-4 mr-2" />
-                  Deactivate
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="text-red-600" 
-                  onClick={() => handleBulkAction("delete")}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <Button variant="outline" size="sm" disabled={selectedUsers.length === 0}>
-            <Download className="h-4 w-4 mr-1" />
-            Export Selected
-          </Button>
         </div>
       </div>
 
@@ -567,11 +541,199 @@ export default function UsersManagementPage() {
         <TabsList>
           <TabsTrigger value="all-users">All Users</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
-          <TabsTrigger value="admins">Admins &amp; Staff</TabsTrigger>
-          <TabsTrigger value="suspended">Suspended</TabsTrigger>
+          <TabsTrigger value="admins">Admins</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all-users" className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              <div className="relative overflow-x-auto">
+                {loading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Loading users...</span>
+                  </div>
+                ) : error ? (
+                  <div className="p-8 text-center text-red-500">
+                    <p>{error}</p>
+                    <Button variant="outline" className="mt-4" onClick={fetchUsers}>
+                      Try Again
+                    </Button>
+                  </div>
+                ) : (
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs uppercase bg-muted/50">
+                      <tr>
+                        <th scope="col" className="p-4">
+                          <div className="flex items-center">
+                            <input
+                              id="checkbox-all"
+                              type="checkbox"
+                              className="w-4 h-4 rounded border-gray-300"
+                              onChange={handleSelectAll}
+                              checked={selectedUsers.length === currentUsers.length && currentUsers.length > 0}
+                            />
+                            <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
+                          </div>
+                        </th>
+                        <th scope="col" className="px-4 py-3">User</th>
+                        <th scope="col" className="px-4 py-3">Role</th>
+                        <th scope="col" className="px-4 py-3">Phone</th>
+                        <th scope="col" className="px-4 py-3">Joined Date</th>
+                        <th scope="col" className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentUsers.length === 0 ? (
+                        <tr className="border-b">
+                          <td colSpan={6} className="px-4 py-8 text-center">
+                            <p className="text-muted-foreground">No users found</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        currentUsers.map((user) => {
+                          const roleBadge = getRoleBadge(user.isAdmin ? "Admin" : "Customer")
+                          
+                          return (
+                            <tr 
+                              key={user._id} 
+                              className="border-b hover:bg-muted/50 cursor-pointer"
+                              onClick={() => router.push(`/admin/users/${user._id}`)}
+                            >
+                              <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    className="w-4 h-4 rounded border-gray-300"
+                                    checked={selectedUsers.includes(user._id)}
+                                    onChange={() => handleSelectUser(user._id)}
+                                  />
+                                  <label className="sr-only">checkbox</label>
+                                </div>
+                              </td>
+                              <td className="flex items-center gap-3 px-4 py-3">
+                                <div className="h-10 w-10 rounded-full bg-muted flex-shrink-0 overflow-hidden">
+                                  <Image 
+                                    src={user.avatar || "/placeholder-avatar.png"} 
+                                    alt={user.name}
+                                    width={40}
+                                    height={40}
+                                    className="h-10 w-10 object-cover rounded-full"
+                                    priority
+                                  />
+                                </div>
+                                <div>
+                                  <div className="font-medium">{user.name}</div>
+                                  <div className="text-sm text-muted-foreground">{user.email}</div>
+                                </div>
+                             
+                              </td>
+                              <td className="px-4 py-3">
+                                <Badge className={`flex w-fit items-center ${roleBadge.class}`}>
+                                  {roleBadge.icon}
+                                  {user.isAdmin ? "Admin" : "Customer"}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {user.phone || "-"}
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {user.joinedDate ? formatDate(user.joinedDate) : "Unknown"}
+                              </td>
+                              <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-end">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => openEditDialog(user)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem 
+                                        onClick={() => router.push(`/admin/users/${user._id}`)}
+                                      >
+                                        <UserIcon className="h-4 w-4 mr-2" />
+                                        View Profile
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                                        <Pencil className="h-4 w-4 mr-2" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem 
+                                        className="text-red-600"
+                                        onClick={() => openDeleteDialog(user)}
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pagination */}
+          {!loading && !error && filteredUsers.length > 0 && (
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} users
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="icon"
+                      className="w-8 h-8"
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+        
+        {/* Customers tab */}
+        <TabsContent value="customers" className="space-y-4">
           <Card>
             <CardContent className="p-0">
               <div className="relative overflow-x-auto">
@@ -581,214 +743,79 @@ export default function UsersManagementPage() {
                       <th scope="col" className="p-4">
                         <div className="flex items-center">
                           <input
-                            id="checkbox-all"
                             type="checkbox"
                             className="w-4 h-4 rounded border-gray-300"
-                            onChange={handleSelectAll}
-                            checked={selectedUsers.length === currentUsers.length && currentUsers.length > 0}
                           />
-                          <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
+                          <label className="sr-only">checkbox</label>
                         </div>
                       </th>
                       <th scope="col" className="px-4 py-3">User</th>
-                      <th scope="col" className="px-4 py-3">Role</th>
-                      <th scope="col" className="px-4 py-3">Status</th>
+                      <th scope="col" className="px-4 py-3">Phone</th>
                       <th scope="col" className="px-4 py-3">Joined Date</th>
-                      <th scope="col" className="px-4 py-3">Last Login</th>
-                      <th scope="col" className="px-4 py-3">Orders</th>
                       <th scope="col" className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {currentUsers.map((user) => {
-                      const statusBadge = getStatusBadge(user.status)
-                      const roleBadge = getRoleBadge(user.role)
-                      
-                      return (
-                        <tr 
-                          key={user.id} 
-                          className="border-b hover:bg-muted/50 cursor-pointer"
-                          onClick={() => router.push(`/admin/users/${user.id}`)}
-                        >
-                          <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center">
-                              <input
-                                type="checkbox"
-                                className="w-4 h-4 rounded border-gray-300"
-                                checked={selectedUsers.includes(user.id)}
-                                onChange={() => handleSelectUser(user.id)}
-                              />
-                              <label className="sr-only">checkbox</label>
-                            </div>
-                          </td>
-                          <td className="flex items-center gap-3 px-4 py-3">
-                            <div className="h-10 w-10 rounded-full bg-muted flex-shrink-0 overflow-hidden">
-                              <Image 
-                                src={user.avatar || "/placeholder-avatar.png"} 
-                                alt={user.name}
-                                width={40}
-                                height={40}
-                                className="h-10 w-10 object-cover rounded-full"
-                                priority
-                              />
-                            </div>
-                            <div>
-                              <div className="font-medium">{user.name}</div>
-                              <div className="text-sm text-muted-foreground">{user.email}</div>
-                            </div>
-                            {!user.verified && (
-                              <Badge variant="outline" className="ml-2 border-amber-500 text-amber-500">
-                                Unverified
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge className={`flex w-fit items-center ${roleBadge.class}`}>
-                              {roleBadge.icon}
-                              {user.role}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge className={`flex w-fit items-center ${statusBadge.class}`}>
-                              {statusBadge.icon}
-                              {user.status}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {formatDate(user.joinedDate)}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {user.lastLogin ? formatDateTime(user.lastLogin) : "Never"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium">{user.orders}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {formatCurrency(user.totalSpent)}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex justify-end">
-                              <Button variant="ghost" size="icon">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                onClick={() => openEditDialog(user)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem>
-                                    <Mail className="h-4 w-4 mr-2" />
-                                    Send Email
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem>
-                                    <Lock className="h-4 w-4 mr-2" />
-                                    Reset Password
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem>
-                                    {user.status === "Active" ? (
-                                      <>
-                                        <UserX className="h-4 w-4 mr-2" />
-                                        Deactivate
-                                      </>
-                                    ) : (
-                                      <>
-                                        <UserCheck className="h-4 w-4 mr-2" />
-                                        Activate
-                                      </>
-                                    )}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem 
-                                    className="text-red-600"
-                                    onClick={() => openDeleteDialog(user)}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
+                    {loading ? (
+                      <tr className="border-b">
+                        <td colSpan={5} className="px-4 py-8 text-center">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr className="border-b">
+                        <td colSpan={5} className="px-4 py-8 text-center">
+                          <p className="text-muted-foreground">Switch to "All Users" tab to see customers</p>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             </CardContent>
           </Card>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} users
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="icon"
-                    className="w-8 h-8"
-                    onClick={() => setCurrentPage(page)}
-                  >
-                    {page}
-                  </Button>
-                ))}
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
         </TabsContent>
         
-        {/* Other tab contents would be similar with filtered data */}
-        <TabsContent value="customers" className="space-y-4">
-          <Card>
-            <CardContent className="flex items-center justify-center h-40">
-              <p className="text-muted-foreground">Customer users filtered view</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
+        {/* Admins tab */}
         <TabsContent value="admins" className="space-y-4">
           <Card>
-            <CardContent className="flex items-center justify-center h-40">
-              <p className="text-muted-foreground">Admin & Staff users filtered view</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="suspended" className="space-y-4">
-          <Card>
-            <CardContent className="flex items-center justify-center h-40">
-              <p className="text-muted-foreground">Suspended users filtered view</p>
+            <CardContent className="p-0">
+              <div className="relative overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs uppercase bg-muted/50">
+                    <tr>
+                      <th scope="col" className="p-4">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded border-gray-300"
+                          />
+                          <label className="sr-only">checkbox</label>
+                        </div>
+                      </th>
+                      <th scope="col" className="px-4 py-3">User</th>
+                      <th scope="col" className="px-4 py-3">Phone</th>
+                      <th scope="col" className="px-4 py-3">Joined Date</th>
+                      <th scope="col" className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr className="border-b">
+                        <td colSpan={5} className="px-4 py-8 text-center">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr className="border-b">
+                        <td colSpan={5} className="px-4 py-8 text-center">
+                          <p className="text-muted-foreground">Switch to "All Users" tab to see admins</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -825,6 +852,16 @@ export default function UsersManagementPage() {
               />
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="phone">Phone</Label>
+              <Input 
+                id="phone"
+                type="tel"
+                placeholder="+1 234 567 8900"
+                value={newUser.phone}
+                onChange={(e) => setNewUser({...newUser, phone: e.target.value})}
+              />
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="password">Password (optional)</Label>
               <Input 
                 id="password"
@@ -840,26 +877,19 @@ export default function UsersManagementPage() {
             <div className="grid gap-2">
               <Label htmlFor="role">Role</Label>
               <Select 
-                value={newUser.role}
-                onValueChange={(value) => setNewUser({...newUser, role: value})}
+                value={newUser.isAdmin ? "Admin" : "Customer"}
+                onValueChange={(value) => setNewUser({...newUser, isAdmin: value === "Admin"})}
               >
                 <SelectTrigger id="role">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Customer">Customer</SelectItem>
-                  <SelectItem value="Staff">Staff</SelectItem>
                   <SelectItem value="Admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center space-x-2">
-              <Switch 
-                id="send-email" 
-                defaultChecked 
-              />
-              <Label htmlFor="send-email">Send welcome email</Label>
-            </div>
+           
           </div>
           <DialogFooter>
             <Button 
@@ -871,7 +901,7 @@ export default function UsersManagementPage() {
             </Button>
             <Button 
               onClick={handleAddUser} 
-              disabled={isSubmitting || !newUser.name || !newUser.email}
+              disabled={isSubmitting || !newUser.name || !newUser.email || !newUser.phone}
             >
               {isSubmitting ? (
                 <>
@@ -922,7 +952,8 @@ export default function UsersManagementPage() {
                   <Label htmlFor="edit-name">Full Name</Label>
                   <Input 
                     id="edit-name"
-                    defaultValue={currentUser.name}
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -930,38 +961,36 @@ export default function UsersManagementPage() {
                   <Input 
                     id="edit-email"
                     type="email"
-                    defaultValue={currentUser.email}
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({...editForm, email: e.target.value})}
                   />
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-role">Role</Label>
-                  <Select defaultValue={currentUser.role}>
-                    <SelectTrigger id="edit-role">
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Customer">Customer</SelectItem>
-                      <SelectItem value="Staff">Staff</SelectItem>
-                      <SelectItem value="Admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-status">Status</Label>
-                  <Select defaultValue={currentUser.status}>
-                    <SelectTrigger id="edit-status">
-                      <SelectValue placeholder="Select a status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Inactive">Inactive</SelectItem>
-                      <SelectItem value="Suspended">Suspended</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-phone">Phone</Label>
+                <Input 
+                  id="edit-phone"
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="edit-role">Role</Label>
+                <Select 
+                  value={editForm.isAdmin ? "Admin" : "Customer"}
+                  onValueChange={(value) => setEditForm({...editForm, isAdmin: value === "Admin"})}
+                >
+                  <SelectTrigger id="edit-role">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Customer">Customer</SelectItem>
+                    <SelectItem value="Admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               <Separator />
@@ -990,7 +1019,7 @@ export default function UsersManagementPage() {
               </Button>
               <Button 
                 onClick={handleUpdateUser}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !editForm.name || !editForm.email || !editForm.phone}
               >
                 {isSubmitting ? (
                   <>
@@ -1032,15 +1061,19 @@ export default function UsersManagementPage() {
               </div>
 
               <p className="mt-4 text-sm text-muted-foreground">
-                {currentUser.role === "Customer" 
-                  ? "This will also delete all associated orders, reviews, and other customer data."
-                  : "This will revoke all access and permissions for this user."
+                {currentUser.isAdmin
+                  ? "This will revoke all access and permissions for this user."
+                  : "This will also delete all associated orders, reviews, and other customer data."
                 }
               </p>
               
               <div className="mt-4">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="confirm-delete" />
+                  <Checkbox 
+                    id="confirm-delete" 
+                    checked={deleteConfirmed}
+                    onCheckedChange={(checked) => setDeleteConfirmed(checked === true)}
+                  />
                   <label
                     htmlFor="confirm-delete"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
@@ -1061,7 +1094,7 @@ export default function UsersManagementPage() {
               <Button 
                 variant="destructive"
                 onClick={handleDeleteUser}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !deleteConfirmed}
               >
                 {isSubmitting ? (
                   <>

@@ -1,14 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { 
   Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+  CardContent
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,17 +21,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Download, 
   Search,
-  Filter,
   Plus,
   Pencil,
   Trash2,
   MoreHorizontal,
-  ArrowUpDown,
   Eye,
-  Upload,
-  Copy
+  Copy,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -44,154 +37,311 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { toast } from "@/components/ui/use-toast"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 
-// Mock products data
-const products = [
-  {
-    id: "PROD001",
-    name: "Premium Leather Sofa",
-    sku: "FURN-SOFA-001",
-    price: 1299.99,
-    category: "Furniture",
-    stock: 12,
-    status: "Active",
-    featured: true,
-    image: "/placeholder.png"
-  },
-  {
-    id: "PROD002",
-    name: "Modern Coffee Table",
-    sku: "FURN-TABLE-002",
-    price: 349.99,
-    category: "Furniture",
-    stock: 25,
-    status: "Active",
-    featured: false,
-    image: "/placeholder.png"
-  },
-  {
-    id: "PROD003",
-    name: "Ergonomic Office Chair",
-    sku: "FURN-CHAIR-003",
-    price: 499.99,
-    category: "Furniture",
-    stock: 8,
-    status: "Active",
-    featured: true,
-    image: "/placeholder.png"
-  },
-  {
-    id: "PROD004",
-    name: "Queen Size Bed Frame",
-    sku: "FURN-BED-004",
-    price: 899.99,
-    category: "Furniture",
-    stock: 5,
-    status: "Active",
-    featured: true,
-    image: "/placeholder.png"
-  },
-  {
-    id: "PROD005",
-    name: "Velvet Accent Chair",
-    sku: "FURN-CHAIR-005",
-    price: 449.99,
-    category: "Furniture",
-    stock: 0,
-    status: "Out of Stock",
-    featured: false,
-    image: "/placeholder.png"
-  },
-  {
-    id: "PROD006",
-    name: "Minimalist Dining Table",
-    sku: "FURN-TABLE-006",
-    price: 749.99,
-    category: "Furniture",
-    stock: 15,
-    status: "Active",
-    featured: false,
-    image: "/placeholder.png"
-  },
-  {
-    id: "PROD007",
-    name: "Wooden Bookshelf",
-    sku: "FURN-SHELF-007",
-    price: 299.99,
-    category: "Furniture",
-    stock: 18,
-    status: "Active",
-    featured: false,
-    image: "/placeholder.png"
-  },
-  {
-    id: "PROD008",
-    name: "Sectional Corner Sofa",
-    sku: "FURN-SOFA-008",
-    price: 1899.99,
-    category: "Furniture",
-    stock: 3,
-    status: "Low Stock",
-    featured: true,
-    image: "/placeholder.png"
-  },
-  {
-    id: "PROD009",
-    name: "Adjustable Standing Desk",
-    sku: "FURN-DESK-009",
-    price: 699.99,
-    category: "Furniture",
-    stock: 10,
-    status: "Active",
-    featured: false,
-    image: "/placeholder.png"
-  },
-  {
-    id: "PROD010",
-    name: "King Size Memory Foam Mattress",
-    sku: "BED-MATT-010",
-    price: 1199.99,
-    category: "Bedding",
-    stock: 7,
-    status: "Active",
-    featured: true,
-    image: "/placeholder.png"
-  }
-]
+// API configuration
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-// Categories for filter
-const categories = [
+// Furniture categories
+const furnitureCategories = [
   "All Categories",
-  "Furniture",
-  "Bedding",
-  "Decor",
-  "Lighting",
-  "Kitchen",
-  "Bathroom"
+  "Sofas",
+  "Chairs",
+  "Tables",
+  "Beds",
+  "Desks",
+  "Wardrobes",
+  "Bookshelves",
+  "Cabinets",
+  "Ottomans",
+  "Dining Sets",
+  "Dressers"
 ]
+
+// Product interface to match backend
+interface Product {
+  _id?: string;
+  title: string;
+  desc: string;
+  img: string;
+  size: string;
+  color: string;
+  price: number;
+  categories: string[];
+  model3d?: string;
+  quantity?: number;
+  inStock?: boolean;
+  lowStockThreshold?: number;
+}
+
+// Default new product template
+const defaultNewProduct: Product = {
+  title: "",
+  desc: "",
+  img: "",
+  size: "",
+  color: "",
+  price: 0,
+  categories: [""],
+  model3d: "",
+  quantity: 0,
+  inStock: true,
+  lowStockThreshold: 5
+}
 
 export default function ProductsManagementPage() {
   const router = useRouter()
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("All Categories")
   const [statusFilter, setStatusFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [newProductDialogOpen, setNewProductDialogOpen] = useState(false)
+  const [currentProduct, setCurrentProduct] = useState<Product | null>(null)
+  const [newProduct, setNewProduct] = useState<Product>(defaultNewProduct)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const itemsPerPage = 8
   
-  // Get status badge color
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "Active":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-      case "Inactive":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400"
-      case "Out of Stock":
-        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-      case "Low Stock":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-      default:
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+  // Function to retrieve the auth token
+  const getAuthToken = () => {
+    try {
+      return localStorage.getItem("token") || ""
+    } catch (err) {
+      console.error("Error accessing localStorage for token:", err)
+      return ""
+    }
+  }
+
+  // Fetch products from API
+  useEffect(() => {
+    fetchProducts()
+  }, [currentPage, categoryFilter, statusFilter])
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true)
+      
+      // Build query parameters
+      const params = new URLSearchParams()
+      params.append('page', currentPage.toString())
+      params.append('limit', itemsPerPage.toString())
+      
+      if (categoryFilter !== "All Categories") {
+        params.append('category', categoryFilter)
+      }
+      
+      // Handle filtering by status
+      if (statusFilter === "out-of-stock") {
+        params.append('inStock', 'false')
+      } else if (statusFilter === "low-stock") {
+        params.append('lowStock', 'true')
+      }
+      
+      const token = getAuthToken()
+      
+      const response = await fetch(`${API_URL}/products?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include'
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      // Check the structure of the response and extract products array
+      const productsArray = Array.isArray(data) ? data : 
+                          (data.products ? data.products : [])
+      
+      console.log("Fetched products:", productsArray)
+      setProducts(productsArray)
+      setLoading(false)
+    } catch (err) {
+      console.error("Error fetching products:", err)
+      setError("Failed to load products")
+      setLoading(false)
+      toast({
+        title: "Error",
+        description: "Failed to load products",
+        variant: "destructive"
+      })
+    }
+  }
+  
+  // Delete product
+  const deleteProduct = async (productId: string) => {
+    try {
+      const token = getAuthToken()
+      
+      const response = await fetch(`${API_URL}/products/delete/${productId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include'
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`)
+      }
+      
+      // Refetch products after deletion
+      fetchProducts()
+      toast({
+        title: "Success",
+        description: "Product deleted successfully",
+      })
+    } catch (err) {
+      console.error("Error deleting product:", err)
+      toast({
+        title: "Error",
+        description: "Failed to delete product",
+        variant: "destructive"
+      })
+    }
+  }
+  
+  // Update product
+  const updateProduct = async (productId: string, updateData: Product) => {
+    try {
+      setIsSubmitting(true)
+      const token = getAuthToken()
+      
+      const response = await fetch(`${API_URL}/products/update/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updateData),
+        credentials: 'include'
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`)
+      }
+      
+      // Refetch products after update
+      fetchProducts()
+      setEditDialogOpen(false)
+      toast({
+        title: "Success",
+        description: "Product updated successfully",
+      })
+    } catch (err) {
+      console.error("Error updating product:", err)
+      toast({
+        title: "Error",
+        description: "Failed to update product",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+  
+  // Create new product
+  const createProduct = async (productData: Product) => {
+    try {
+      setIsSubmitting(true)
+      const token = getAuthToken()
+      
+      const response = await fetch(`${API_URL}/products/addProduct`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(productData),
+        credentials: 'include'
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`)
+      }
+      
+      // Refetch products after creation
+      fetchProducts()
+      setNewProductDialogOpen(false)
+      setNewProduct(defaultNewProduct)
+      toast({
+        title: "Success",
+        description: "Product created successfully",
+      })
+    } catch (err) {
+      console.error("Error creating product:", err)
+      toast({
+        title: "Error",
+        description: "Failed to create product",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Open edit dialog
+  const openEditDialog = (product: Product) => {
+    setCurrentProduct({...product})
+    setEditDialogOpen(true)
+  }
+
+  // Handle edit form submit
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentProduct || !currentProduct._id) return
+    
+    updateProduct(currentProduct._id, currentProduct)
+  }
+
+  // Handle new product form submit
+  const handleNewProductSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Basic validation
+    if (!newProduct.title || newProduct.price <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    createProduct(newProduct)
+  }
+
+  // Get status badge color based on product data
+  const getStatusBadge = (product: Product) => {
+    if (!product.inStock || product.quantity === 0) {
+      return {
+        status: "Out of Stock",
+        class: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+      }
+    } else if (product.quantity && product.lowStockThreshold && product.quantity <= product.lowStockThreshold) {
+      return {
+        status: "Low Stock",
+        class: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+      }
+    } else {
+      return {
+        status: "Active",
+        class: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+      }
     }
   }
 
@@ -206,7 +356,7 @@ export default function ProductsManagementPage() {
   // Handle select all
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedProducts(filteredProducts.map(product => product.id))
+      setSelectedProducts(filteredProducts.map(product => product._id || ''))
     } else {
       setSelectedProducts([])
     }
@@ -221,31 +371,28 @@ export default function ProductsManagementPage() {
     }
   }
 
-  // Filter products
-  const filteredProducts = products.filter(product => {
+  // Filter products - ensure products is an array before filtering
+  const filteredProducts = Array.isArray(products) ? products.filter(product => {
     const matchesSearch = 
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.id.toLowerCase().includes(searchQuery.toLowerCase())
+      (product.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
+      (product._id?.toLowerCase() || "").includes(searchQuery.toLowerCase())
     
     const matchesCategory = 
-      categoryFilter === "All Categories" || product.category === categoryFilter
+      categoryFilter === "All Categories" || 
+      (product.categories && product.categories.includes(categoryFilter))
     
     if (statusFilter === "all") {
       return matchesSearch && matchesCategory
-    } else if (statusFilter === "featured") {
-      return matchesSearch && matchesCategory && product.featured
-    } else if (statusFilter === "inactive") {
-      return matchesSearch && matchesCategory && product.status === "Inactive"
     } else if (statusFilter === "out-of-stock") {
-      return matchesSearch && matchesCategory && 
-        (product.status === "Out of Stock" || product.stock <= 0)
+      return matchesSearch && matchesCategory && (!product.inStock || product.quantity === 0)
     } else if (statusFilter === "low-stock") {
-      return matchesSearch && matchesCategory && product.status === "Low Stock"
+      return matchesSearch && matchesCategory && 
+        (product.quantity !== undefined && product.lowStockThreshold !== undefined && 
+         product.quantity <= product.lowStockThreshold && product.quantity > 0)
     }
     
     return matchesSearch && matchesCategory
-  })
+  }) : []
 
   // Pagination
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
@@ -261,11 +408,7 @@ export default function ProductsManagementPage() {
           <p className="text-muted-foreground mt-2">Manage your product catalog</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
-          <Button>
+          <Button onClick={() => setNewProductDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Product
           </Button>
@@ -289,7 +432,7 @@ export default function ProductsManagementPage() {
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              {categories.map((category) => (
+              {furnitureCategories.map((category) => (
                 <SelectItem key={category} value={category}>
                   {category}
                 </SelectItem>
@@ -303,194 +446,223 @@ export default function ProductsManagementPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Products</SelectItem>
-              <SelectItem value="featured">Featured</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
               <SelectItem value="out-of-stock">Out of Stock</SelectItem>
               <SelectItem value="low-stock">Low Stock</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        
-        <div className="flex gap-2 self-end md:self-auto">
-          <Button variant="outline" size="sm" disabled={selectedProducts.length === 0}>
-            <Download className="h-4 w-4 mr-1" />
-            Export Selected
-          </Button>
         </div>
       </div>
 
       <Tabs defaultValue="all" className="space-y-4">
         <TabsList>
           <TabsTrigger value="all">All Products</TabsTrigger>
-          <TabsTrigger value="featured">Featured</TabsTrigger>
           <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
-          <TabsTrigger value="archived">Archived</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <div className="relative overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs uppercase bg-muted/50">
-                    <tr>
-                      <th scope="col" className="p-4">
-                        <div className="flex items-center">
-                          <input
-                            id="checkbox-all"
-                            type="checkbox"
-                            className="w-4 h-4 rounded border-gray-300"
-                            onChange={handleSelectAll}
-                            checked={selectedProducts.length === currentProducts.length && currentProducts.length > 0}
-                          />
-                          <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
-                        </div>
-                      </th>
-                      <th scope="col" className="px-4 py-3">Product</th>
-                      <th scope="col" className="px-4 py-3">SKU</th>
-                      <th scope="col" className="px-4 py-3">Category</th>
-                      <th scope="col" className="px-4 py-3">Price</th>
-                      <th scope="col" className="px-4 py-3">Stock</th>
-                      <th scope="col" className="px-4 py-3">Status</th>
-                      <th scope="col" className="px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentProducts.map((product) => (
-                      <tr 
-                        key={product.id} 
-                        className="border-b hover:bg-muted/50 cursor-pointer"
-                        onClick={() => router.push(`/admin/products/${product.id}`)}
-                      >
-                        <td className="p-4" onClick={(e) => e.stopPropagation()}>
+          {loading ? (
+            <Card>
+              <CardContent className="p-6 flex justify-center">
+                <p>Loading products...</p>
+              </CardContent>
+            </Card>
+          ) : error ? (
+            <Card>
+              <CardContent className="p-6 text-center text-red-500">
+                <p>{error}</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={fetchProducts}
+                >
+                  Try Again
+                </Button>
+              </CardContent>
+            </Card>
+          ) : currentProducts.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <p className="text-muted-foreground">No products found</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <div className="relative overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs uppercase bg-muted/50">
+                      <tr>
+                        <th scope="col" className="p-4">
                           <div className="flex items-center">
                             <input
+                              id="checkbox-all"
                               type="checkbox"
                               className="w-4 h-4 rounded border-gray-300"
-                              checked={selectedProducts.includes(product.id)}
-                              onChange={() => handleSelectProduct(product.id)}
+                              onChange={handleSelectAll}
+                              checked={selectedProducts.length === currentProducts.length && currentProducts.length > 0}
                             />
-                            <label className="sr-only">checkbox</label>
+                            <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
                           </div>
-                        </td>
-                        <td className="flex items-center gap-2 px-4 py-3">
-                          <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center overflow-hidden">
-                            <Image
-                              src={product.image || "/placeholder.png"}
-                              alt={product.name}
-                              width={40}
-                              height={40}
-                              className="object-cover"
-                              priority
-                            />
-                          </div>
-                          <span className="font-medium">{product.name}</span>
-                          {product.featured && (
-                            <Badge variant="outline" className="ml-2 border-amber-500 text-amber-500">
-                              Featured
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">{product.sku}</td>
-                        <td className="px-4 py-3">{product.category}</td>
-                        <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
-                        <td className="px-4 py-3">{product.stock}</td>
-                        <td className="px-4 py-3">
-                          <Badge className={getStatusBadge(product.status)}>
-                            {product.status}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex justify-end">
-                            <Button variant="ghost" size="icon">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem>
-                                  <Copy className="h-4 w-4 mr-2" />
-                                  Duplicate
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  {product.featured ? (
-                                    <>Remove from Featured</>
-                                  ) : (
-                                    <>Mark as Featured</>
-                                  )}
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-red-600">
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </td>
+                        </th>
+                        <th scope="col" className="px-4 py-3">Product</th>
+                        <th scope="col" className="px-4 py-3">ID</th>
+                        <th scope="col" className="px-4 py-3">Category</th>
+                        <th scope="col" className="px-4 py-3">Price</th>
+                        <th scope="col" className="px-4 py-3">Color</th>
+                        <th scope="col" className="px-4 py-3">Size</th>
+                        <th scope="col" className="px-4 py-3">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                    </thead>
+                    <tbody>
+                      {currentProducts.map((product) => {
+                        const statusInfo = getStatusBadge(product)
+                        return (
+                          <tr 
+                            key={product._id} 
+                            className="border-b hover:bg-muted/50"
+                          >
+                            <td className="p-4">
+                              <div className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded border-gray-300"
+                                  checked={selectedProducts.includes(product._id || '')}
+                                  onChange={() => product._id && handleSelectProduct(product._id)}
+                                />
+                                <label className="sr-only">checkbox</label>
+                              </div>
+                            </td>
+                            <td className="flex items-center gap-2 px-4 py-3">
+                              <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center overflow-hidden">
+                                <Image
+                                  src={product.img || "/placeholder.png"}
+                                  alt={product.title}
+                                  width={40}
+                                  height={40}
+                                  className="object-cover"
+                                  priority
+                                />
+                              </div>
+                              <span className="font-medium">{product.title}</span>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {product._id ? product._id.substring(0, 8) + '...' : 'N/A'}
+                            </td>
+                            <td className="px-4 py-3">{product.categories ? product.categories.join(', ') : 'N/A'}</td>
+                            <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
+                            <td className="px-4 py-3">{product.color || 'N/A'}</td>
+                            <td className="px-4 py-3">{product.size || 'N/A'}</td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => router.push(`/admin/products/${product._id}`)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => openEditDialog(product)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => {
+                                      // Logic to duplicate product
+                                      const { _id, ...productWithoutId } = product;
+                                      createProduct({
+                                        ...productWithoutId,
+                                        title: `Copy of ${product.title}`
+                                      })
+                                    }}>
+                                      <Copy className="h-4 w-4 mr-2" />
+                                      Duplicate
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      className="text-red-600"
+                                      onClick={() => product._id && deleteProduct(product._id)}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Pagination */}
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1}-{Math.min(endIndex, filteredProducts.length)} of {filteredProducts.length} products
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="icon"
-                    className="w-8 h-8"
-                    onClick={() => setCurrentPage(page)}
-                  >
-                    {page}
-                  </Button>
-                ))}
+          {!loading && !error && filteredProducts.length > 0 && (
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredProducts.length)} of {filteredProducts.length} products
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    // Show first page, last page, and pages around current page
+                    let pageToShow;
+                    if (totalPages <= 5) {
+                      pageToShow = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageToShow = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageToShow = totalPages - 4 + i;
+                    } else {
+                      pageToShow = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <Button
+                        key={pageToShow}
+                        variant={currentPage === pageToShow ? "default" : "outline"}
+                        size="icon"
+                        className="w-8 h-8"
+                        onClick={() => setCurrentPage(pageToShow)}
+                      >
+                        {pageToShow}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        </TabsContent>
-        
-        {/* Other tab contents would be similar with filtered data */}
-        <TabsContent value="featured">
-          <Card>
-            <CardContent className="flex items-center justify-center h-40">
-              <p className="text-muted-foreground">Featured products filtered view</p>
-            </CardContent>
-          </Card>
+          )}
         </TabsContent>
         
         <TabsContent value="out-of-stock">
@@ -500,15 +672,319 @@ export default function ProductsManagementPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="archived">
-          <Card>
-            <CardContent className="flex items-center justify-center h-40">
-              <p className="text-muted-foreground">Archived products filtered view</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
+
+      {/* Edit Product Dialog */}
+      {currentProduct && (
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Edit Product</DialogTitle>
+              <DialogDescription>
+                Make changes to your product here. Click save when you're done.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleEditSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="product-title" className="text-right">
+                    Title
+                  </Label>
+                  <Input
+                    id="product-title"
+                    value={currentProduct.title || ""}
+                    onChange={(e) => setCurrentProduct({...currentProduct, title: e.target.value})}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="product-price" className="text-right">
+                    Price
+                  </Label>
+                  <Input
+                    id="product-price"
+                    type="number"
+                    step="0.01"
+                    value={currentProduct.price || 0}
+                    onChange={(e) => setCurrentProduct({...currentProduct, price: parseFloat(e.target.value)})}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="product-color" className="text-right">
+                    Color
+                  </Label>
+                  <Input
+                    id="product-color"
+                    value={currentProduct.color || ""}
+                    onChange={(e) => setCurrentProduct({...currentProduct, color: e.target.value})}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="product-size" className="text-right">
+                    Size
+                  </Label>
+                  <Input
+                    id="product-size"
+                    value={currentProduct.size || ""}
+                    onChange={(e) => setCurrentProduct({...currentProduct, size: e.target.value})}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="product-img" className="text-right">
+                    Image URL
+                  </Label>
+                  <Input
+                    id="product-img"
+                    value={currentProduct.img || ""}
+                    onChange={(e) => setCurrentProduct({...currentProduct, img: e.target.value})}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="product-model3d" className="text-right">
+                    3D Model URL
+                  </Label>
+                  <Input
+                    id="product-model3d"
+                    value={currentProduct.model3d || ""}
+                    onChange={(e) => setCurrentProduct({...currentProduct, model3d: e.target.value})}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="product-category" className="text-right">
+                    Category
+                  </Label>
+                  <Select 
+                    value={currentProduct.categories?.[0] || ""} 
+                    onValueChange={(value) => setCurrentProduct({...currentProduct, categories: [value]})}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {furnitureCategories.filter(c => c !== "All Categories").map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label htmlFor="product-description" className="text-right">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="product-description"
+                    value={currentProduct.desc || ""}
+                    onChange={(e) => setCurrentProduct({...currentProduct, desc: e.target.value})}
+                    className="col-span-3"
+                    rows={5}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="product-quantity" className="text-right">
+                    Stock Quantity
+                  </Label>
+                  <Input
+                    id="product-quantity"
+                    type="number"
+                    value={currentProduct.quantity || 0}
+                    onChange={(e) => setCurrentProduct({...currentProduct, quantity: parseInt(e.target.value)})}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="text-right">
+                    <Label>Status</Label>
+                  </div>
+                  <div className="flex items-center space-x-2 col-span-3">
+                    <Checkbox 
+                      id="product-instock"
+                      checked={currentProduct.inStock} 
+                      onCheckedChange={(checked) => 
+                        setCurrentProduct({...currentProduct, inStock: checked === true})
+                      } 
+                    />
+                    <Label htmlFor="product-instock">In Stock</Label>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)} disabled={isSubmitting}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : "Save changes"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* New Product Dialog */}
+      <Dialog open={newProductDialogOpen} onOpenChange={setNewProductDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Add New Product</DialogTitle>
+            <DialogDescription>
+              Create a new product for your catalog. Fill in the details below.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleNewProductSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="new-product-title" className="text-right">
+                  Title *
+                </Label>
+                <Input
+                  id="new-product-title"
+                  value={newProduct.title}
+                  onChange={(e) => setNewProduct({...newProduct, title: e.target.value})}
+                  className="col-span-3"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="new-product-price" className="text-right">
+                  Price *
+                </Label>
+                <Input
+                  id="new-product-price"
+                  type="number"
+                  step="0.01"
+                  value={newProduct.price}
+                  onChange={(e) => setNewProduct({...newProduct, price: parseFloat(e.target.value)})}
+                  className="col-span-3"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="new-product-color" className="text-right">
+                  Color
+                </Label>
+                <Input
+                  id="new-product-color"
+                  value={newProduct.color}
+                  onChange={(e) => setNewProduct({...newProduct, color: e.target.value})}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="new-product-size" className="text-right">
+                  Size
+                </Label>
+                <Input
+                  id="new-product-size"
+                  value={newProduct.size}
+                  onChange={(e) => setNewProduct({...newProduct, size: e.target.value})}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="new-product-img" className="text-right">
+                  Image URL
+                </Label>
+                <Input
+                  id="new-product-img"
+                  value={newProduct.img}
+                  onChange={(e) => setNewProduct({...newProduct, img: e.target.value})}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="new-product-model3d" className="text-right">
+                  3D Model URL
+                </Label>
+                <Input
+                  id="new-product-model3d"
+                  value={newProduct.model3d}
+                  onChange={(e) => setNewProduct({...newProduct, model3d: e.target.value})}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="new-product-category" className="text-right">
+                  Category *
+                </Label>
+                <Select 
+                  value={newProduct.categories[0]} 
+                  onValueChange={(value) => setNewProduct({...newProduct, categories: [value]})}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {furnitureCategories.filter(c => c !== "All Categories").map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label htmlFor="new-product-description" className="text-right">
+                  Description
+                </Label>
+                <Textarea
+                  id="new-product-description"
+                  value={newProduct.desc}
+                  onChange={(e) => setNewProduct({...newProduct, desc: e.target.value})}
+                  className="col-span-3"
+                  rows={5}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="new-product-quantity" className="text-right">
+                  Stock Quantity *
+                </Label>
+                <Input
+                  id="new-product-quantity"
+                  type="number"
+                  value={newProduct.quantity}
+                  onChange={(e) => setNewProduct({...newProduct, quantity: parseInt(e.target.value)})}
+                  className="col-span-3"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <div className="text-right">
+                  <Label>Status</Label>
+                </div>
+                <div className="flex items-center space-x-2 col-span-3">
+                  <Checkbox 
+                    id="new-product-instock"
+                    checked={newProduct.inStock} 
+                    onCheckedChange={(checked) => 
+                      setNewProduct({...newProduct, inStock: checked === true})
+                    } 
+                  />
+                  <Label htmlFor="new-product-instock">In Stock</Label>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setNewProductDialogOpen(false)} 
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Product"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
