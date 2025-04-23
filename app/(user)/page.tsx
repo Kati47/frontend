@@ -1,318 +1,249 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Image from "next/image"
-import Link from "next/link"
-import { ChevronLeft, Heart, Star, ShoppingCart, Share2, BookmarkCheck, Package } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
-import { toast } from "sonner"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  ChevronLeft,
+  Heart,
+  Star,
+  ShoppingCart,
+  Share2,
+  BookmarkCheck,
+  Package,
+  AlertTriangle,
+  Check,
+  Minus,
+  Plus,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
-// Hard-code the base URL for immediate testing
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1"
-
-// Detailed product interface to match API response
 interface Product {
   _id: string;
   title: string;
-  price: number;
   desc: string;
   img: string;
   categories: string[];
   size: string;
   color: string;
+  price: number;
   inStock: boolean;
-  createdAt: string;
-  updatedAt: string;
-  rating?: number;
+  quantity: number;
+  model3d?: {
+    modelId: string;
+  };
+  averageRating?: number;
   reviewCount?: number;
-  isFavorite?: boolean;
+  isFavorite: boolean;
+  isSavedForLater: boolean;
+  isInCart: boolean;
+  cartQuantity: number;
 }
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const router = useRouter()
-  const [product, setProduct] = useState<Product | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedSize, setSelectedSize] = useState<string | null>(null)
-  const [selectedColor, setSelectedColor] = useState<string | null>(null)
-  const [quantity, setQuantity] = useState(1)
-  const [isSaved, setIsSaved] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [isAddingToCart, setIsAddingToCart] = useState(false)
-  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
+interface Review {
+  rating: number;
+  title: string;
+  comment: string;
+}
 
-  // Function to retrieve the user ID from localStorage
-  const getUserIdFromLocalStorage = () => {
-    try {
-      return localStorage.getItem("userId") || null
-    } catch (err) {
-      console.error("Error accessing localStorage:", err)
-      return null
-    }
+// Helper functions
+const formatSizes = (sizes: string) => sizes.split(",").map((s) => s.trim());
+const formatColors = (colors: string) => colors.split(",").map((c) => c.trim());
+const getStockStatus = (product: Product) => {
+  if (!product.inStock) {
+    return {
+      badge: "destructive",
+      text: "Out of Stock",
+      icon: <AlertTriangle className="h-4 w-4" />,
+    };
   }
+  if (product.quantity <= 5) {
+    return {
+      badge: "secondary",
+      text: "Low Stock",
+      icon: <AlertTriangle className="h-4 w-4" />,
+    };
+  }
+  return {
+    badge: "default",
+    text: "In Stock",
+    icon: <Check className="h-4 w-4" />,
+  };
+};
 
-  // Fetch product details when component mounts
+// Hard-code fake data for demo purposes
+const MOCK_PRODUCT = {
+  _id: "1",
+  title: "Office Chair",
+  desc: "Modern ergonomic office chair with adjustable features and premium comfort. Perfect for long working hours with excellent lumbar support and breathable mesh back.",
+  img: "/placeholder-product.png",
+  categories: ["Furniture", "Office", "Chairs"],
+  size: "Standard",
+  color: "Black,Gray,Blue",
+  price: 299.99,
+  inStock: true,
+  quantity: 15,
+  model3d: {
+    modelId: "b228a29fa84544c2be501c295653ffe7", // Sketchfab model ID for the office chair
+    format: "sketchfab",
+  },
+  averageRating: 4.7,
+  reviewCount: 28,
+  isFavorite: false,
+  isSavedForLater: false,
+  isInCart: false,
+  cartQuantity: 0,
+};
+
+const MOCK_REVIEWS = [
+  {
+    _id: "1",
+    username: "OfficeProBuyer",
+    rating: 5,
+    title: "Perfect Office Chair",
+    comment: "Excellent build quality and very comfortable for long working hours. The 3D preview really helped me make the decision!",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "2",
+    username: "ErgoEnthusiast",
+    rating: 4,
+    title: "Great Value",
+    comment: "Very comfortable and easy to assemble. The adjustable features are great.",
+    createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+  }
+];
+
+interface SketchfabViewerProps {
+  modelId: string;
+  title?: string;
+  height?: string;
+  width?: string;
+}
+
+function SketchfabViewer({
+  modelId,
+  title = "Sketchfab Model",
+  height = "400px",
+  width = "100%",
+}: SketchfabViewerProps) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Clean the model ID to ensure it's just the ID without any URL parts
+  const cleanModelId = modelId.includes("/")
+    ? modelId.split("/").filter((part) => part.length > 20)[0]
+    : modelId;
+
   useEffect(() => {
-    const storedUserId = getUserIdFromLocalStorage()
-    setUserId(storedUserId)
-    
-    const fetchProductDetails = async () => {
-      setIsLoading(true)
-      setError(null)
-      
-      try {
-        console.log(`Fetching product details for ID: ${params.id}`)
-        
-        // Get auth token from localStorage
-        const token = localStorage.getItem('token')
-        
-        // Make API request to get product details
-        // Ensure we're using the same base URL as the shop page
-        const apiUrl = baseUrl.endsWith('/api/v1') 
-          ? `${baseUrl}/products/find/${params.id}` 
-          : `${baseUrl}/api/v1/products/find/${params.id}`
-        
-        console.log("Fetching from URL:", apiUrl)
-        
-        const res = await fetch(apiUrl, {
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : ""
-          }
-        })
-        
-        console.log("Response status:", res.status)
-        
-        if (!res.ok) {
-          if (res.status === 401) {
-            // Handle unauthorized error
-            throw new Error("Authentication required to view this product")
-          } else if (res.status === 404) {
-            throw new Error("Product not found")
-          } else {
-            throw new Error(`Failed to fetch product: ${res.status}`)
-          }
-        }
-        
-        const data = await res.json()
-        console.log("Product data received:", data)
-        
-        // Handle response format - product data might be under a 'product' key or directly in the response
-        const productData = data.product || data
-        
-        // Set product data in state
-        setProduct(productData)
-        
-        // Set initial values for selection if available from product
-        if (productData.size) {
-          setSelectedSize(productData.size.split(',')[0].trim())
-        }
-        if (productData.color) {
-          setSelectedColor(productData.color.split(',')[0].trim())
-        }
-        
-        // Check if product is saved
-        if (storedUserId) {
-          const savedItems = JSON.parse(localStorage.getItem("savedForLater") || "[]")
-          const isSavedItem = savedItems.some((item: any) => item.id === productData._id)
-          setIsSaved(isSavedItem)
-        }
-        
-      } catch (error) {
-        console.error("Error fetching product details:", error)
-        setError(error instanceof Error ? error.message : "Failed to fetch product details")
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    
-    fetchProductDetails()
-  }, [params.id])
+    // Handle iframe resize or any initialization if needed
+    const handleResize = () => {
+      // Any resize handling code if needed
+    };
 
-  // Add to cart function
-  const addToCart = async () => {
-    if (!product) return
-    
-    if (!userId) {
-      toast.error("Please log in to add items to cart", {
-        action: {
-          label: "Login",
-          onClick: () => router.push("/login")
-        }
-      })
-      return
-    }
-    
-    if (product.size && !selectedSize) {
-      toast.error("Please select a size")
-      return
-    }
-    
-    if (product.color && !selectedColor) {
-      toast.error("Please select a color")
-      return
-    }
-    
-    try {
-      setIsAddingToCart(true)
-      
-      const token = localStorage.getItem("token")
-      
-      // Check for existing cart first
-      const cartResponse = await fetch(`${baseUrl}/cart/find/${userId}`, {
-        headers: {
-          "Authorization": token ? `Bearer ${token}` : ""
-        }
-      })
-      
-      // If cart not found, create one
-      if (cartResponse.status === 404) {
-        const createCartResponse = await fetch(`${baseUrl}/cart/add`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": token ? `Bearer ${token}` : ""
-          },
-          body: JSON.stringify({
-            userId,
-            products: []
-          })
-        })
-        
-        if (!createCartResponse.ok) {
-          throw new Error("Failed to create cart")
-        }
-      }
-      
-      // Add product to cart
-      const addResponse = await fetch(`${baseUrl}/cart/add`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": token ? `Bearer ${token}` : ""
-        },
-        body: JSON.stringify({
-          userId,
-          products: [
-            {
-              productId: product._id,
-              quantity
-            }
-          ]
-        })
-      })
-      
-      if (!addResponse.ok) {
-        throw new Error("Failed to add item to cart")
-      }
-      
-      toast.success("Item added to cart", {
-        action: {
-          label: "View Cart",
-          onClick: () => router.push("/cart")
-        }
-      })
-      
-    } catch (error) {
-      console.error("Error adding to cart:", error)
-      toast.error("Failed to add item to cart")
-    } finally {
-      setIsAddingToCart(false)
-    }
-  }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
-  // Toggle saved for later status
-  const toggleSaveForLater = () => {
-    if (!product) return
-    
-    try {
-      setIsTogglingFavorite(true)
-      
-      // Get current saved items
-      const savedItems = JSON.parse(localStorage.getItem("savedForLater") || "[]")
-      
-      if (isSaved) {
-        // Remove from saved items
-        const updatedItems = savedItems.filter((item: any) => item.id !== product._id)
-        localStorage.setItem("savedForLater", JSON.stringify(updatedItems))
-        setIsSaved(false)
-        toast.success("Removed from saved items")
-      } else {
-        // Add to saved items
-        const savedItem = {
-          id: product._id,
-          name: product.title,
-          price: product.price,
-          image: product.img,
-          color: product.color,
-          size: product.size,
-          description: product.desc,
-          inStock: product.inStock,
-          savedAt: new Date().toISOString()
-        }
-        savedItems.push(savedItem)
-        localStorage.setItem("savedForLater", JSON.stringify(savedItems))
-        setIsSaved(true)
-        toast.success("Saved for later", {
-          action: {
-            label: "View Saved",
-            onClick: () => router.push("/saved-for-later")
-          }
-        })
-      }
-    } catch (error) {
-      console.error("Error updating saved items:", error)
-      toast.error("Failed to update saved items")
-    } finally {
-      setIsTogglingFavorite(false)
-    }
-  }
+  const embedUrl = `https://sketchfab.com/models/${cleanModelId}/embed`;
 
-  // Increment quantity
-  const incrementQuantity = () => {
-    setQuantity((prev) => prev + 1)
-  }
+  return (
+    <div className="sketchfab-embed-wrapper" style={{ height, width }}>
+      <iframe
+        ref={iframeRef}
+        title={title}
+        frameBorder="0"
+        allowFullScreen
+        allow="autoplay; fullscreen; xr-spatial-tracking"
+        style={{
+          height: "100%",
+          width: "100%",
+          borderRadius: "0.5rem",
+        }}
+        src={embedUrl}
+      />
+    </div>
+  );
+}
 
-  // Decrement quantity
-  const decrementQuantity = () => {
-    setQuantity((prev) => (prev > 1 ? prev - 1 : 1))
-  }
+export default function ProductDetailPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const productId = "dfads";
+  const router = useRouter();
 
-  // Format sizes from comma-separated string
-  const formatSizes = (sizeString?: string) => {
-    if (!sizeString) return []
-    return sizeString.split(",").map((size) => size.trim())
-  }
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [reviews] = useState(MOCK_REVIEWS);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  const [isTogglingBookmark, setIsTogglingBookmark] = useState(false);
+  const [userReview, setUserReview] = useState<Review | null>(null);
+  const [userId] = useState<string | null>("demo-user"); // Replace with actual user authentication
 
-  // Format colors from comma-separated string
-  const formatColors = (colorString?: string) => {
-    if (!colorString) return []
-    return colorString.split(",").map((color) => color.trim())
-  }
+  const decrementQuantity = () => setQuantity((prev) => Math.max(1, prev - 1));
+  const incrementQuantity = () =>
+    setQuantity((prev) => Math.min(product?.quantity || 1, prev + 1));
+  const [newReview, setNewReview] = useState<Review>({
+    rating: 5,
+    title: "",
+    comment: "",
+  });
 
-  // Get color class for display
-  const getColorClass = (color: string) => {
-    const colorMap: Record<string, string> = {
-      "black": "bg-black",
-      "white": "bg-white border border-gray-300",
-      "red": "bg-red-500",
-      "blue": "bg-blue-500",
-      "green": "bg-green-500",
-      "yellow": "bg-yellow-400",
-      "purple": "bg-purple-500",
-      "pink": "bg-pink-400",
-      "gray": "bg-gray-500",
-      "brown": "bg-amber-800",
-      // Add more colors as needed
-    }
-    
-    return colorMap[color.toLowerCase()] || "bg-gray-200"
-  }
+  // Load mock data on mount
+  useEffect(() => {
+    setProduct(MOCK_PRODUCT);
+    setIsLoading(false);
+  }, []);
+
+  // Simplified handlers that just update local state
+  const handleAddToCart = () => {
+    setProduct((prev) =>
+      prev ? { ...prev, isInCart: true, cartQuantity: quantity } : null
+    );
+    toast.success("Added to cart successfully");
+  };
+
+  const handleToggleFavorite = () => {
+    setProduct((prev) =>
+      prev ? { ...prev, isFavorite: !prev.isFavorite } : null
+    );
+    toast.success("Updated favorites");
+  };
+
+  const handleToggleBookmark = () => {
+    setProduct((prev) =>
+      prev ? { ...prev, isSavedForLater: !prev.isSavedForLater } : null
+    );
+    toast.success("Updated saved items");
+  };
+
+  const handleShare = () => {
+    toast.success("Link copied to clipboard");
+  };
+
+  const handleReviewSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    toast.success("Review submitted successfully");
+    setShowReviewForm(false);
+  };
 
   // Loading state
   if (isLoading) {
@@ -322,10 +253,12 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
             <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-          <h2 className="text-xl font-medium mb-2">Loading product details...</h2>
+          <h2 className="text-xl font-medium mb-2">
+            Loading product details...
+          </h2>
         </div>
       </div>
-    )
+    );
   }
 
   // Error state
@@ -338,10 +271,10 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             Back to Shop
           </Link>
         </Button>
-        
+
         <div className="text-center py-12">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
-            <Package className="h-8 w-8 text-red-500" />
+            <AlertTriangle className="h-8 w-8 text-red-500" />
           </div>
           <h2 className="text-xl font-medium mb-2">Error Loading Product</h2>
           <p className="text-muted-foreground mb-6">{error}</p>
@@ -350,7 +283,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
   // No product state
@@ -363,31 +296,29 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             Back to Shop
           </Link>
         </Button>
-        
+
         <div className="text-center py-12">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
             <Package className="h-8 w-8 text-muted-foreground" />
           </div>
           <h2 className="text-xl font-medium mb-2">Product Not Found</h2>
-          <p className="text-muted-foreground mb-6">The product you're looking for doesn't exist or has been removed.</p>
+          <p className="text-muted-foreground mb-6">
+            The product you're looking for doesn't exist or has been removed.
+          </p>
           <Button asChild>
             <Link href="/shop">Browse Products</Link>
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
   // Available sizes and colors
-  const availableSizes = formatSizes(product.size)
-  const availableColors = formatColors(product.color)
-  
-  // Format product rating
-  const rating = product.rating || 4.5
-  const reviewCount = product.reviewCount || 20
-  
-  // Check stock status
-  const inStock = product.inStock !== false
+  const availableSizes = formatSizes(product.size);
+  const availableColors = formatColors(product.color);
+
+  // Get stock status
+  const stockStatus = getStockStatus(product);
 
   return (
     <div className="container py-8">
@@ -396,80 +327,155 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           Home
         </Link>
         <span className="text-muted-foreground">/</span>
-        <Link href="/shop" className="text-muted-foreground hover:text-foreground">
+        <Link
+          href="/shop"
+          className="text-muted-foreground hover:text-foreground"
+        >
           Shop
         </Link>
         <span className="text-muted-foreground">/</span>
         <span className="truncate max-w-[200px]">{product.title}</span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="space-y-4">
-          <div className="relative aspect-square overflow-hidden rounded-lg border bg-muted">
-            <Image
-              src={product.img || "/placeholder.svg"}
-              alt={product.title}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 50vw"
-              priority
-            />
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Product Images and 3D Model Section */}
+        <div>
+          <Tabs defaultValue="image" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="image">Images</TabsTrigger>
+              {product.model3d && product.model3d.modelId && (
+                <TabsTrigger value="3d">3D Model</TabsTrigger>
+              )}
+            </TabsList>
+
+            <TabsContent value="image" className="mt-0">
+              <div className="aspect-square relative overflow-hidden rounded-lg border bg-white">
+                <Image
+                  src={product.img || "/placeholder-product.png"}
+                  alt={product.title}
+                  fill
+                  className="object-contain p-4"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  priority
+                />
+              </div>
+            </TabsContent>
+
+            {product.model3d && product.model3d.modelId && (
+              <TabsContent value="3d" className="mt-0">
+                <div className="aspect-square relative overflow-hidden rounded-lg border bg-white">
+                  <SketchfabViewer
+                    modelId={product.model3d.modelId}
+                    title={product.title}
+                    height="100%"
+                    width="100%"
+                  />
+                </div>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  <p>
+                    Interactive 3D model - click and drag to rotate, scroll to
+                    zoom
+                  </p>
+                </div>
+              </TabsContent>
+            )}
+          </Tabs>
         </div>
 
-        <div>
-          <h1 className="text-3xl font-bold">{product.title}</h1>
-          
-          <div className="flex items-center mt-2 space-x-4">
-            <div className="flex items-center">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star
-                  key={i}
-                  className={`h-5 w-5 ${
-                    i < Math.floor(rating)
-                      ? "text-yellow-400 fill-yellow-400"
-                      : i < rating
-                      ? "text-yellow-400 fill-yellow-400 opacity-50"
-                      : "text-gray-300"
-                  }`}
-                />
-              ))}
-              <span className="ml-2 text-sm text-muted-foreground">({reviewCount} reviews)</span>
+        {/* Product Information */}
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">{product.title}</h1>
+            <div className="flex items-center gap-4 mt-2">
+              <div className="flex items-center">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={`h-4 w-4 ${
+                      (product.averageRating || 0) >= star
+                        ? "text-yellow-400 fill-yellow-400"
+                        : "text-muted"
+                    }`}
+                  />
+                ))}
+                <span className="ml-2 text-sm text-muted-foreground">
+                  {product.averageRating?.toFixed(1) || "No ratings"}
+                  {product.reviewCount
+                    ? ` (${product.reviewCount} reviews)`
+                    : ""}
+                </span>
+              </div>
             </div>
-            
-            <Separator orientation="vertical" className="h-5" />
-            
-            <span className={inStock ? "text-green-600" : "text-red-600"}>
-              {inStock ? "In Stock" : "Out of Stock"}
-            </span>
           </div>
 
-          <div className="mt-6">
-            <div className="text-3xl font-bold">${product.price.toFixed(2)}</div>
-            <p className="text-sm text-muted-foreground mt-1">
-              Free shipping on orders over $50
+          <div>
+            <p className="text-2xl font-semibold">
+              ${product.price.toFixed(2)}
             </p>
           </div>
 
-          <div className="mt-6 space-y-6">
-            {availableSizes.length > 0 && (
+          <Separator />
+
+          <div>
+            <p className="text-muted-foreground mb-4">{product.desc}</p>
+
+            <div className="flex items-center gap-2 mb-4">
+              <Badge
+                variant={
+                  stockStatus.badge as
+                    | "default"
+                    | "secondary"
+                    | "destructive"
+                    | "outline"
+                }
+              >
+                <span className="flex items-center gap-1">
+                  {stockStatus.icon}
+                  {stockStatus.text}
+                </span>
+              </Badge>
+
+              {product.categories && product.categories.length > 0 && (
+                <div className="flex gap-1 flex-wrap">
+                  {product.categories.map((category, index) => (
+                    <Badge key={index} variant="outline">
+                      {category}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Size Selector */}
+          {availableSizes.length > 0 && (
+            <div className="space-y-4">
               <div>
-                <h3 className="font-medium mb-3">Select Size</h3>
+                <Label htmlFor="size" className="text-base">
+                  Size
+                </Label>
                 <RadioGroup
-                  value={selectedSize || ""}
+                  id="size"
+                  className="flex flex-wrap gap-2 mt-2"
+                  value={selectedSize || availableSizes[0]}
                   onValueChange={setSelectedSize}
-                  className="flex flex-wrap gap-2"
                 >
                   {availableSizes.map((size) => (
-                    <div key={size} className="flex items-center space-x-2">
+                    <div key={size}>
                       <RadioGroupItem
-                        value={size}
                         id={`size-${size}`}
-                        className="peer sr-only"
+                        value={size}
+                        className="sr-only"
                       />
                       <Label
                         htmlFor={`size-${size}`}
-                        className="rounded-md border border-muted px-3 py-2 cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                        className={`px-3 py-1 rounded-md cursor-pointer border ${
+                          selectedSize === size
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background hover:bg-muted"
+                        }`}
                       >
                         {size}
                       </Label>
@@ -477,156 +483,399 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                   ))}
                 </RadioGroup>
               </div>
-            )}
 
-            {availableColors.length > 0 && (
+              <Separator />
+            </div>
+          )}
+
+          {/* Color Selector */}
+          {availableColors.length > 0 && (
+            <div className="space-y-4">
               <div>
-                <h3 className="font-medium mb-3">Select Color</h3>
+                <Label htmlFor="color" className="text-base">
+                  Color
+                </Label>
                 <RadioGroup
-                  value={selectedColor || ""}
+                  id="color"
+                  className="flex flex-wrap gap-2 mt-2"
+                  value={selectedColor || availableColors[0]}
                   onValueChange={setSelectedColor}
-                  className="flex flex-wrap gap-3"
                 >
                   {availableColors.map((color) => (
-                    <div key={color} className="flex items-center space-x-2">
+                    <div key={color}>
                       <RadioGroupItem
-                        value={color}
                         id={`color-${color}`}
-                        className="peer sr-only"
+                        value={color}
+                        className="sr-only"
                       />
                       <Label
                         htmlFor={`color-${color}`}
-                        className="flex items-center space-x-2 rounded-md border border-muted px-3 py-2 cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                        className={`px-3 py-1 rounded-md cursor-pointer border ${
+                          selectedColor === color
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background hover:bg-muted"
+                        }`}
                       >
-                        <div className={`h-5 w-5 rounded-full ${getColorClass(color)}`} />
-                        <span>{color}</span>
+                        {color}
                       </Label>
                     </div>
                   ))}
                 </RadioGroup>
               </div>
-            )}
 
-            <div>
-              <h3 className="font-medium mb-3">Quantity</h3>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={decrementQuantity}
-                  disabled={quantity <= 1}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4"
-                  >
-                    <path d="M5 12h14" />
-                  </svg>
-                  <span className="sr-only">Decrease</span>
-                </Button>
-                <span className="w-12 text-center">{quantity}</span>
-                <Button variant="outline" size="icon" onClick={incrementQuantity}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4"
-                  >
-                    <path d="M5 12h14" />
-                    <path d="M12 5v14" />
-                  </svg>
-                  <span className="sr-only">Increase</span>
-                </Button>
-              </div>
+              <Separator />
             </div>
+          )}
 
-            <div className="flex flex-col space-y-3 sm:flex-row sm:space-x-3 sm:space-y-0">
-              <Button 
-                className="flex-1" 
-                size="lg" 
-                onClick={addToCart}
-                disabled={!inStock || isAddingToCart}
+          {/* Quantity Selector */}
+          <div>
+            <Label htmlFor="quantity" className="text-base">
+              Quantity
+            </Label>
+            <div className="flex items-center mt-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-r-none"
+                onClick={decrementQuantity}
+                disabled={quantity <= 1}
               >
-                {isAddingToCart ? (
-                  <>
-                    <div className="h-5 w-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                    Adding...
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="mr-2 h-5 w-5" />
-                    Add to Cart
-                  </>
-                )}
+                <Minus className="h-4 w-4" />
+                <span className="sr-only">Decrease</span>
               </Button>
-              <Button 
-                variant="outline" 
-                size="lg" 
-                onClick={toggleSaveForLater}
+              <Input
+                id="quantity"
+                type="number"
+                min="1"
+                max={product.quantity}
+                className="h-9 w-16 rounded-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                value={quantity}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (isNaN(value) || value < 1) {
+                    setQuantity(1);
+                  } else if (value > product.quantity) {
+                    setQuantity(product.quantity);
+                  } else {
+                    setQuantity(value);
+                  }
+                }}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-l-none"
+                onClick={incrementQuantity}
+                disabled={quantity >= product.quantity}
+              >
+                <Plus className="h-4 w-4" />
+                <span className="sr-only">Increase</span>
+              </Button>
+
+              <span className="ml-2 text-sm text-muted-foreground">
+                {product.quantity} available
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 pt-4">
+            <Button
+              className="flex-1"
+              disabled={!product.inStock || isAddingToCart || product.isInCart}
+              onClick={handleAddToCart}
+            >
+              {isAddingToCart ? (
+                <span className="flex items-center gap-2">
+                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Adding...
+                </span>
+              ) : product.isInCart ? (
+                <span className="flex items-center gap-2">
+                  <Check className="h-4 w-4" />
+                  Added to Cart
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4" />
+                  Add to Cart
+                </span>
+              )}
+            </Button>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className={product.isFavorite ? "text-red-500" : ""}
+                onClick={handleToggleFavorite}
                 disabled={isTogglingFavorite}
               >
                 {isTogglingFavorite ? (
-                  <div className="h-5 w-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                ) : isSaved ? (
-                  <BookmarkCheck className="h-5 w-5 fill-primary text-primary" />
+                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <BookmarkCheck className="h-5 w-5" />
+                  <Heart
+                    className={`h-4 w-4 ${
+                      product.isFavorite ? "fill-red-500" : ""
+                    }`}
+                  />
                 )}
-                <span className="ml-2 hidden sm:inline">{isSaved ? "Saved" : "Save for Later"}</span>
+                <span className="sr-only">
+                  {product.isFavorite
+                    ? "Remove from Favorites"
+                    : "Add to Favorites"}
+                </span>
               </Button>
-              <Button variant="outline" size="icon" className="hidden sm:flex">
-                <Share2 className="h-5 w-5" />
+
+              <Button
+                variant="outline"
+                size="icon"
+                className={product.isSavedForLater ? "text-blue-500" : ""}
+                onClick={handleToggleBookmark}
+                disabled={isTogglingBookmark}
+              >
+                {isTogglingBookmark ? (
+                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <BookmarkCheck
+                    className={`h-4 w-4 ${
+                      product.isSavedForLater ? "fill-blue-500" : ""
+                    }`}
+                  />
+                )}
+                <span className="sr-only">
+                  {product.isSavedForLater
+                    ? "Remove from Saved"
+                    : "Save for Later"}
+                </span>
+              </Button>
+
+              <Button variant="outline" size="icon" onClick={handleShare}>
+                <Share2 className="h-4 w-4" />
                 <span className="sr-only">Share</span>
               </Button>
             </div>
           </div>
-
-          <Separator className="my-6" />
-
-          <Tabs defaultValue="description">
-            <TabsList>
-              <TabsTrigger value="description">Description</TabsTrigger>
-              <TabsTrigger value="shipping">Shipping & Returns</TabsTrigger>
-            </TabsList>
-            <TabsContent value="description" className="pt-4">
-              <div className="prose max-w-none dark:prose-invert">
-                <p>
-                  {product.desc || "No description available for this product."}
-                </p>
-              </div>
-            </TabsContent>
-            <TabsContent value="shipping" className="pt-4">
-              <div className="prose max-w-none dark:prose-invert">
-                <h4>Shipping</h4>
-                <p>
-                  Free standard shipping on orders over $50. Expedited shipping options available at checkout.
-                </p>
-                <p>
-                  International shipping available to select countries. Additional taxes and duties may apply.
-                </p>
-                <h4>Returns</h4>
-                <p>
-                  We accept returns within 30 days of delivery. Items must be unused and in their original packaging.
-                </p>
-              </div>
-            </TabsContent>
-          </Tabs>
         </div>
       </div>
+
+      {/* Reviews Section */}
+      <div className="mt-12">
+        <Tabs defaultValue="description" className="w-full">
+          <TabsList>
+            <TabsTrigger value="description">Description</TabsTrigger>
+            <TabsTrigger value="reviews">
+              Reviews {product.reviewCount ? `(${product.reviewCount})` : ""}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="description" className="mt-6">
+            <div className="prose max-w-none">
+              <p>{product.desc}</p>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="reviews" className="mt-6">
+            <div className="space-y-8">
+              {/* Review Summary */}
+              <div className="flex flex-col md:flex-row gap-8">
+                <div className="md:w-1/3">
+                  <div className="flex flex-col items-center p-4 border rounded-lg">
+                    <h3 className="text-3xl font-bold">
+                      {product.averageRating?.toFixed(1) || "0.0"}
+                    </h3>
+                    <div className="flex items-center my-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-5 w-5 ${
+                            (product.averageRating || 0) >= star
+                              ? "text-yellow-400 fill-yellow-400"
+                              : "text-muted"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-muted-foreground">
+                      Based on {product.reviewCount || 0}{" "}
+                      {product.reviewCount === 1 ? "review" : "reviews"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="md:w-2/3">
+                  {!userReview && userId && (
+                    <div>
+                      {showReviewForm ? (
+                        <Card>
+                          <CardHeader>
+                            <h3 className="text-lg font-semibold">
+                              Write a Review
+                            </h3>
+                          </CardHeader>
+                          <CardContent>
+                            <form
+                              onSubmit={handleReviewSubmit}
+                              className="space-y-4"
+                            >
+                              <div>
+                                <Label htmlFor="rating">Rating</Label>
+                                <RadioGroup
+                                  id="rating"
+                                  className="flex gap-2 mt-2"
+                                  value={newReview.rating.toString()}
+                                  onValueChange={(value) =>
+                                    setNewReview({
+                                      ...newReview,
+                                      rating: parseInt(value),
+                                    })
+                                  }
+                                >
+                                  {[1, 2, 3, 4, 5].map((rating) => (
+                                    <div key={rating}>
+                                      <RadioGroupItem
+                                        id={`rating-${rating}`}
+                                        value={rating.toString()}
+                                        className="sr-only"
+                                      />
+                                      <Label
+                                        htmlFor={`rating-${rating}`}
+                                        className={`px-3 py-1 rounded-md cursor-pointer border ${
+                                          parseInt(
+                                            newReview.rating.toString()
+                                          ) === rating
+                                            ? "bg-primary text-primary-foreground border-primary"
+                                            : "bg-background hover:bg-muted"
+                                        }`}
+                                      >
+                                        {rating}
+                                      </Label>
+                                    </div>
+                                  ))}
+                                </RadioGroup>
+                              </div>
+
+                              <div>
+                                <Label htmlFor="title">Title</Label>
+                                <Input
+                                  id="title"
+                                  value={newReview.title}
+                                  onChange={(e) =>
+                                    setNewReview({
+                                      ...newReview,
+                                      title: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Summarize your review"
+                                />
+                              </div>
+
+                              <div>
+                                <Label htmlFor="comment">Review</Label>
+                                <Textarea
+                                  id="comment"
+                                  value={newReview.comment}
+                                  onChange={(e) =>
+                                    setNewReview({
+                                      ...newReview,
+                                      comment: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Write your review here"
+                                  rows={4}
+                                  required
+                                />
+                              </div>
+
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => setShowReviewForm(false)}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button type="submit">Submit Review</Button>
+                              </div>
+                            </form>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        <div className="text-center p-6 border rounded-lg">
+                          <h3 className="font-medium mb-2">
+                            Share your thoughts about this product
+                          </h3>
+                          <Button onClick={() => setShowReviewForm(true)}>
+                            Write a Review
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Reviews List */}
+              <div className="space-y-6">
+                <h3 className="text-lg font-semibold">Customer Reviews</h3>
+
+                {reviews.length === 0 ? (
+                  <div className="text-center p-8">
+                    <p className="text-muted-foreground">
+                      No reviews yet. Be the first to review this product.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {reviews.map((review) => (
+                      <div key={review._id} className="p-4 border rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Avatar>
+                            {/* <AvatarImage src={review.userAvatar} /> */}
+                            <AvatarFallback>
+                              {review.username?.[0]?.toUpperCase() || "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">
+                              {review.username || "Anonymous"}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(
+                                review.createdAt || ""
+                              ).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center mb-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`h-4 w-4 ${
+                                review.rating >= star
+                                  ? "text-yellow-400 fill-yellow-400"
+                                  : "text-muted"
+                              }`}
+                            />
+                          ))}
+                        </div>
+
+                        {review.title && (
+                          <h4 className="font-medium mb-1">{review.title}</h4>
+                        )}
+
+                        <p>{review.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
-  )
+  );
 }

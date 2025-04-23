@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { 
   Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle,
-  CardFooter 
+  CardContent
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,19 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Download, 
   Search,
-  Filter,
   Plus,
   Pencil,
   Trash2,
   MoreHorizontal,
-  Upload,
-  Copy,
   Lock,
   Shield,
   User as UserIcon,
@@ -47,7 +38,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
@@ -312,40 +303,6 @@ export default function UsersManagementPage() {
     }
   }
 
-  // Format date
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "Never"
-    
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    }).format(date)
-  }
-
-  // Format datetime
-  const formatDateTime = (dateString: string | null | undefined) => {
-    if (!dateString) return "Never"
-    
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric'
-    }).format(date)
-  }
-
-  // Format currency
-  const formatCurrency = (amount: number = 0) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }
-
   // Handle select all
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -366,7 +323,7 @@ export default function UsersManagementPage() {
 
   // Handle add new user
   const handleAddUser = async () => {
-    if (!newUser.name || !newUser.email || !newUser.phone) {
+    if (!newUser.name || !newUser.email || !newUser.phone || !newUser.password) {
       toast.error("Please fill in all required fields")
       return
     }
@@ -377,7 +334,7 @@ export default function UsersManagementPage() {
       // Convert role to isAdmin flag
       const userData = {
         ...newUser,
-        isAdmin: newUser.role === "Admin"
+        isAdmin: newUser.isAdmin === true
       }
       
       await createUser(userData)
@@ -537,289 +494,174 @@ export default function UsersManagementPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="all-users" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="all-users">All Users</TabsTrigger>
-          <TabsTrigger value="customers">Customers</TabsTrigger>
-          <TabsTrigger value="admins">Admins</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all-users" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <div className="relative overflow-x-auto">
-                {loading ? (
-                  <div className="flex items-center justify-center p-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-muted-foreground">Loading users...</span>
-                  </div>
-                ) : error ? (
-                  <div className="p-8 text-center text-red-500">
-                    <p>{error}</p>
-                    <Button variant="outline" className="mt-4" onClick={fetchUsers}>
-                      Try Again
-                    </Button>
-                  </div>
-                ) : (
-                  <table className="w-full text-sm text-left">
-                    <thead className="text-xs uppercase bg-muted/50">
-                      <tr>
-                        <th scope="col" className="p-4">
-                          <div className="flex items-center">
-                            <input
-                              id="checkbox-all"
-                              type="checkbox"
-                              className="w-4 h-4 rounded border-gray-300"
-                              onChange={handleSelectAll}
-                              checked={selectedUsers.length === currentUsers.length && currentUsers.length > 0}
-                            />
-                            <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
-                          </div>
-                        </th>
-                        <th scope="col" className="px-4 py-3">User</th>
-                        <th scope="col" className="px-4 py-3">Role</th>
-                        <th scope="col" className="px-4 py-3">Phone</th>
-                        <th scope="col" className="px-4 py-3">Joined Date</th>
-                        <th scope="col" className="px-4 py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {currentUsers.length === 0 ? (
-                        <tr className="border-b">
-                          <td colSpan={6} className="px-4 py-8 text-center">
-                            <p className="text-muted-foreground">No users found</p>
+      <Card>
+        <CardContent className="p-0">
+          <div className="relative overflow-x-auto">
+            {loading ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Loading users...</span>
+              </div>
+            ) : error ? (
+              <div className="p-8 text-center text-red-500">
+                <p>{error}</p>
+                <Button variant="outline" className="mt-4" onClick={fetchUsers}>
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs uppercase bg-muted/50">
+                  <tr>
+                    <th scope="col" className="p-4">
+                      <div className="flex items-center">
+                        <input
+                          id="checkbox-all"
+                          type="checkbox"
+                          className="w-4 h-4 rounded border-gray-300"
+                          onChange={handleSelectAll}
+                          checked={selectedUsers.length === currentUsers.length && currentUsers.length > 0}
+                        />
+                        <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 py-3">User</th>
+                    <th scope="col" className="px-4 py-3">Role</th>
+                    <th scope="col" className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentUsers.length === 0 ? (
+                    <tr className="border-b">
+                      <td colSpan={4} className="px-4 py-8 text-center">
+                        <p className="text-muted-foreground">No users found</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    currentUsers.map((user) => {
+                      const roleBadge = getRoleBadge(user.isAdmin ? "Admin" : "Customer")
+                      
+                      return (
+                        <tr 
+                          key={user._id} 
+                          className="border-b hover:bg-muted/50"
+                        >
+                          <td className="p-4">
+                            <div className="flex items-center">
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 rounded border-gray-300"
+                                checked={selectedUsers.includes(user._id)}
+                                onChange={() => handleSelectUser(user._id)}
+                              />
+                              <label className="sr-only">checkbox</label>
+                            </div>
+                          </td>
+                          <td className="flex items-center gap-3 px-4 py-3">
+                            <div className="h-10 w-10 rounded-full bg-muted flex-shrink-0 overflow-hidden">
+                              <Image 
+                                src={user.avatar || "/placeholder-avatar.png"} 
+                                alt={user.name}
+                                width={40}
+                                height={40}
+                                className="h-10 w-10 object-cover rounded-full"
+                                priority
+                              />
+                            </div>
+                            <div>
+                              <div className="font-medium">{user.name}</div>
+                              <div className="text-sm text-muted-foreground">{user.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge className={`flex w-fit items-center ${roleBadge.class}`}>
+                              {roleBadge.icon}
+                              {user.isAdmin ? "Admin" : "Customer"}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => openEditDialog(user)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    className="text-red-600"
+                                    onClick={() => openDeleteDialog(user)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </td>
                         </tr>
-                      ) : (
-                        currentUsers.map((user) => {
-                          const roleBadge = getRoleBadge(user.isAdmin ? "Admin" : "Customer")
-                          
-                          return (
-                            <tr 
-                              key={user._id} 
-                              className="border-b hover:bg-muted/50 cursor-pointer"
-                              onClick={() => router.push(`/admin/users/${user._id}`)}
-                            >
-                              <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    className="w-4 h-4 rounded border-gray-300"
-                                    checked={selectedUsers.includes(user._id)}
-                                    onChange={() => handleSelectUser(user._id)}
-                                  />
-                                  <label className="sr-only">checkbox</label>
-                                </div>
-                              </td>
-                              <td className="flex items-center gap-3 px-4 py-3">
-                                <div className="h-10 w-10 rounded-full bg-muted flex-shrink-0 overflow-hidden">
-                                  <Image 
-                                    src={user.avatar || "/placeholder-avatar.png"} 
-                                    alt={user.name}
-                                    width={40}
-                                    height={40}
-                                    className="h-10 w-10 object-cover rounded-full"
-                                    priority
-                                  />
-                                </div>
-                                <div>
-                                  <div className="font-medium">{user.name}</div>
-                                  <div className="text-sm text-muted-foreground">{user.email}</div>
-                                </div>
-                             
-                              </td>
-                              <td className="px-4 py-3">
-                                <Badge className={`flex w-fit items-center ${roleBadge.class}`}>
-                                  {roleBadge.icon}
-                                  {user.isAdmin ? "Admin" : "Customer"}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground">
-                                {user.phone || "-"}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground">
-                                {user.joinedDate ? formatDate(user.joinedDate) : "Unknown"}
-                              </td>
-                              <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex justify-end">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => openEditDialog(user)}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem 
-                                        onClick={() => router.push(`/admin/users/${user._id}`)}
-                                      >
-                                        <UserIcon className="h-4 w-4 mr-2" />
-                                        View Profile
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                                        <Pencil className="h-4 w-4 mr-2" />
-                                        Edit
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem 
-                                        className="text-red-600"
-                                        onClick={() => openDeleteDialog(user)}
-                                      >
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        Delete
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-          {/* Pagination */}
-          {!loading && !error && filteredUsers.length > 0 && (
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} users
-              </div>
-              <div className="flex items-center space-x-2">
+      {/* Pagination */}
+      {!loading && !error && filteredUsers.length > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} users
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentPage(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <Button
-                  variant="outline"
+                  key={page}
+                  variant={currentPage === page ? "default" : "outline"}
                   size="icon"
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  disabled={currentPage === 1}
+                  className="w-8 h-8"
+                  onClick={() => setCurrentPage(page)}
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  {page}
                 </Button>
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? "default" : "outline"}
-                      size="icon"
-                      className="w-8 h-8"
-                      onClick={() => setCurrentPage(page)}
-                    >
-                      {page}
-                    </Button>
-                  ))}
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+              ))}
             </div>
-          )}
-        </TabsContent>
-        
-        {/* Customers tab */}
-        <TabsContent value="customers" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <div className="relative overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs uppercase bg-muted/50">
-                    <tr>
-                      <th scope="col" className="p-4">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4 rounded border-gray-300"
-                          />
-                          <label className="sr-only">checkbox</label>
-                        </div>
-                      </th>
-                      <th scope="col" className="px-4 py-3">User</th>
-                      <th scope="col" className="px-4 py-3">Phone</th>
-                      <th scope="col" className="px-4 py-3">Joined Date</th>
-                      <th scope="col" className="px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr className="border-b">
-                        <td colSpan={5} className="px-4 py-8 text-center">
-                          <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr className="border-b">
-                        <td colSpan={5} className="px-4 py-8 text-center">
-                          <p className="text-muted-foreground">Switch to "All Users" tab to see customers</p>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Admins tab */}
-        <TabsContent value="admins" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <div className="relative overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs uppercase bg-muted/50">
-                    <tr>
-                      <th scope="col" className="p-4">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4 rounded border-gray-300"
-                          />
-                          <label className="sr-only">checkbox</label>
-                        </div>
-                      </th>
-                      <th scope="col" className="px-4 py-3">User</th>
-                      <th scope="col" className="px-4 py-3">Phone</th>
-                      <th scope="col" className="px-4 py-3">Joined Date</th>
-                      <th scope="col" className="px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr className="border-b">
-                        <td colSpan={5} className="px-4 py-8 text-center">
-                          <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr className="border-b">
-                        <td colSpan={5} className="px-4 py-8 text-center">
-                          <p className="text-muted-foreground">Switch to "All Users" tab to see admins</p>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Add New User Dialog */}
       <Dialog open={newUserDialogOpen} onOpenChange={setNewUserDialogOpen}>
@@ -827,7 +669,7 @@ export default function UsersManagementPage() {
           <DialogHeader>
             <DialogTitle>Add New User</DialogTitle>
             <DialogDescription>
-              Create a new user account. The user will receive an email to set up their password.
+              Create a new user account.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -862,17 +704,14 @@ export default function UsersManagementPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Password (optional)</Label>
+              <Label htmlFor="password">Password</Label>
               <Input 
                 id="password"
                 type="password"
-                placeholder="Leave empty to send setup email"
+                placeholder="Enter password"
                 value={newUser.password}
                 onChange={(e) => setNewUser({...newUser, password: e.target.value})}
               />
-              <p className="text-sm text-muted-foreground">
-                If left empty, an email will be sent to the user to set up their password.
-              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="role">Role</Label>
@@ -889,7 +728,6 @@ export default function UsersManagementPage() {
                 </SelectContent>
               </Select>
             </div>
-           
           </div>
           <DialogFooter>
             <Button 
@@ -901,7 +739,7 @@ export default function UsersManagementPage() {
             </Button>
             <Button 
               onClick={handleAddUser} 
-              disabled={isSubmitting || !newUser.name || !newUser.email || !newUser.phone}
+              disabled={isSubmitting || !newUser.name || !newUser.email || !newUser.phone || !newUser.password}
             >
               {isSubmitting ? (
                 <>

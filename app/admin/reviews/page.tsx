@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { 
@@ -61,7 +61,47 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-// Near the top of the component, add predefined deletion reasons
+// Type definitions
+interface User {
+  _id: string;
+  username?: string;
+  img?: string;
+}
+
+interface Product {
+  _id: string;
+  title?: string;
+  img?: string[];
+}
+
+interface Review {
+  _id: string;
+  title: string;
+  comment: string;
+  rating: number;
+  userId: User;
+  productId: Product;
+  flagLevel?: string;
+  createdAt: string;
+  status?: string;
+}
+
+interface ReviewsResponse {
+  reviews: Review[];
+  totalReviews: number;
+  totalPages: number;
+  currentPage: number;
+  ratingDistribution: Record<string, number>;
+  flagDistribution?: Record<string, number>;
+}
+
+interface UserResponse {
+  users: User[];
+  totalUsers: number;
+  totalPages: number;
+}
+
+// Predefined deletion reasons
 const DELETION_REASONS = [
   { value: "inappropriate", label: "Inappropriate content" },
   { value: "offensive", label: "Contains offensive language" },
@@ -70,77 +110,45 @@ const DELETION_REASONS = [
   { value: "misleading", label: "Misleading or false information" },
   { value: "personal_attack", label: "Personal attack on staff" },
   { value: "privacy", label: "Contains personal information" },
-
 ];
 
 export default function ReviewsManagementPage() {
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [authError, setAuthError] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [ratingFilter, setRatingFilter] = useState("all")
-  const [sortFilter, setSortFilter] = useState("newest")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [selectedReviews, setSelectedReviews] = useState([])
-  const [viewMode, setViewMode] = useState("all") // all, product, user
+  const [loading, setLoading] = useState<boolean>(true)
+  const [authError, setAuthError] = useState<boolean>(false)
+  const [searchQuery, setSearchQuery] = useState<string>("")
+  const [ratingFilter, setRatingFilter] = useState<string>("all")
+  const [sortFilter, setSortFilter] = useState<string>("newest")
+  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [selectedReviews, setSelectedReviews] = useState<string[]>([])
+  const [viewMode, setViewMode] = useState<"all" | "product" | "user">("all")
   
   // Dialog state for deletion reason
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [reviewToDelete, setReviewToDelete] = useState(null)
-  const [deleteError, setDeleteError] = useState("")
-  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false)
+  const [reviewToDelete, setReviewToDelete] = useState<Review | null>(null)
+  const [deleteError, setDeleteError] = useState<string>("")
+  const [deleteLoading, setDeleteLoading] = useState<boolean>(false)
+  const [deletionReason, setDeletionReason] = useState<string>("")
+  const [customReason, setCustomReason] = useState<string>("")
 
-  // In the component state, replace deleteReason with:
-  const [deletionReason, setDeletionReason] = useState("")
-  const [customReason, setCustomReason] = useState("")
-
-  // Define review type
-    interface User {
-      _id: string;
-      username?: string;
-      img?: string;
-    }
-  
-    interface Product {
-      _id: string;
-      title?: string;
-      img?: string[];
-    }
-  
-    interface Review {
-      _id: string;
-      title: string;
-      comment: string;
-      rating: number;
-      userId?: User;
-      productId?: Product;
-      flagLevel?: string;
-      createdAt: string;
-    }
-  
-    // State for reviews data
-    const [allReviews, setAllReviews] = useState<Review[]>([])
-    const [totalReviews, setTotalReviews] = useState(0)
-    const [totalPages, setTotalPages] = useState(1)
-    const [ratingDistribution, setRatingDistribution] = useState<Record<string, number>>({})
-    const [flagDistribution, setFlagDistribution] = useState<Record<string, number>>({})
-  
-    // State for filtered or search results
-    const [displayedReviews, setDisplayedReviews] = useState<Review[]>([])
+  // State for reviews data
+  const [allReviews, setAllReviews] = useState<Review[]>([])
+  const [displayedReviews, setDisplayedReviews] = useState<Review[]>([])
+  const [totalReviews, setTotalReviews] = useState<number>(0)
+  const [totalPages, setTotalPages] = useState<number>(1)
+  const [ratingDistribution, setRatingDistribution] = useState<Record<string, number>>({})
+  const [flagDistribution, setFlagDistribution] = useState<Record<string, number>>({})
   
   // State for review users data
-  const [reviewUsers, setReviewUsers] = useState([])
-  const [totalUsers, setTotalUsers] = useState(0)
-  const [totalUserPages, setTotalUserPages] = useState(1)
+  const [reviewUsers, setReviewUsers] = useState<User[]>([])
+  const [totalUsers, setTotalUsers] = useState<number>(0)
+  const [totalUserPages, setTotalUserPages] = useState<number>(1)
   
   const itemsPerPage = 10
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'
   
-  // Minimum deletion reason length
-  const MIN_REASON_LENGTH = 15
-  
   // Function to retrieve the user ID from localStorage
-  const getUserIdFromLocalStorage = () => {
+  const getUserIdFromLocalStorage = (): string => {
     try {
       const storedUserId = localStorage.getItem("userId") || ""
       console.log("User ID from localStorage:", storedUserId)
@@ -152,7 +160,7 @@ export default function ReviewsManagementPage() {
   }
   
   // Function to retrieve the auth token
-  const getAuthToken = () => {
+  const getAuthToken = (): string => {
     try {
       return localStorage.getItem("token") || ""
     } catch (err) {
@@ -257,7 +265,7 @@ export default function ReviewsManagementPage() {
         throw new Error(`Failed to fetch reviews: ${response.status}`)
       }
       
-      const data = await response.json()
+      const data = await response.json() as ReviewsResponse
       
       setAllReviews(data.reviews)
       setDisplayedReviews(data.reviews)
@@ -301,7 +309,7 @@ export default function ReviewsManagementPage() {
         throw new Error(`Failed to fetch review users: ${response.status}`)
       }
       
-      const data = await response.json()
+      const data = await response.json() as UserResponse
       
       setReviewUsers(data.users)
       setTotalUsers(data.totalUsers)
@@ -311,8 +319,7 @@ export default function ReviewsManagementPage() {
     }
   }
   
-  // Then update the handleDeleteClick function
-  const handleDeleteClick = (review) => {
+  const handleDeleteClick = (review: Review) => {
     setReviewToDelete(review)
     setDeletionReason("")
     setCustomReason("")
@@ -320,11 +327,21 @@ export default function ReviewsManagementPage() {
     setDeleteDialogOpen(true)
   }
   
-  // Update the confirmDeleteReview function
   const confirmDeleteReview = async () => {
     // Validate a reason was selected
     if (!deletionReason) {
       setDeleteError("Please select a reason for deletion")
+      return
+    }
+    
+    // For "other" option, require custom reason
+    if (deletionReason === "other" && !customReason.trim()) {
+      setDeleteError("Please provide additional details")
+      return
+    }
+    
+    if (!reviewToDelete) {
+      setDeleteError("No review selected for deletion")
       return
     }
     
@@ -376,7 +393,7 @@ export default function ReviewsManagementPage() {
       // Refresh the data
       fetchReviews()
       setDeleteDialogOpen(false)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting review:", error)
       setDeleteError("Failed to delete review: " + error.message)
     } finally {
@@ -385,7 +402,7 @@ export default function ReviewsManagementPage() {
   }
   
   // Handle select all
-  const handleSelectAll = (e) => {
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
       setSelectedReviews(displayedReviews.map(review => review._id))
     } else {
@@ -394,7 +411,7 @@ export default function ReviewsManagementPage() {
   }
 
   // Handle single select
-  const handleSelectReview = (reviewId) => {
+  const handleSelectReview = (reviewId: string) => {
     if (selectedReviews.includes(reviewId)) {
       setSelectedReviews(selectedReviews.filter(id => id !== reviewId))
     } else {
@@ -403,7 +420,7 @@ export default function ReviewsManagementPage() {
   }
   
   // Format date
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric', 
       month: 'short', 
@@ -417,7 +434,7 @@ export default function ReviewsManagementPage() {
   }
   
   // Rating stars display component
-  const RatingStars = ({ rating }) => {
+  const RatingStars = ({ rating }: { rating: number }) => {
     const stars = []
     const fullStars = Math.floor(rating)
     const hasHalfStar = rating % 1 >= 0.5
@@ -436,7 +453,7 @@ export default function ReviewsManagementPage() {
   }
 
   // Get badge color based on flag level
-  const getFlagBadgeColor = (flagLevel) => {
+  const getFlagBadgeColor = (flagLevel?: string) => {
     switch (flagLevel) {
       case 'green': return 'bg-green-100 text-green-800'
       case 'yellow': return 'bg-yellow-100 text-yellow-800'
@@ -446,7 +463,7 @@ export default function ReviewsManagementPage() {
   }
 
   // Get user display name - never return "Anonymous"
-  const getUserDisplayName = (user) => {
+  const getUserDisplayName = (user?: User) => {
     if (user?.username) return user.username
     if (user?._id) return `User ${user._id.substring(0, 8)}`
     return "User ID not available"
@@ -489,7 +506,7 @@ export default function ReviewsManagementPage() {
             />
           </div>
           
-          <Select value={viewMode} onValueChange={setViewMode}>
+          <Select value={viewMode} onValueChange={(value: "all" | "product" | "user") => setViewMode(value)}>
             <SelectTrigger className="w-full md:w-40">
               <SelectValue placeholder="View Mode" />
             </SelectTrigger>
@@ -729,7 +746,7 @@ export default function ReviewsManagementPage() {
                     {Object.keys(ratingDistribution).length > 0 ? (
                       <div className="space-y-2">
                         {[5, 4, 3, 2, 1].map((rating) => {
-                          const count = ratingDistribution[rating] || 0
+                          const count = ratingDistribution[rating.toString()] || 0
                           const percentage = totalReviews > 0 ? Math.round((count / totalReviews) * 100) : 0
                           
                           return (
@@ -763,7 +780,7 @@ export default function ReviewsManagementPage() {
                         {['green', 'yellow', 'red'].map((flag) => {
                           const count = flagDistribution[flag] || 0
                           const percentage = totalReviews > 0 ? Math.round((count / totalReviews) * 100) : 0
-                          const colors = {
+                          const colors: Record<'green' | 'yellow' | 'red', string> = {
                             green: 'bg-green-500',
                             yellow: 'bg-yellow-500',
                             red: 'bg-red-500'
@@ -778,7 +795,7 @@ export default function ReviewsManagementPage() {
                               </div>
                               <div className="relative w-full h-4 bg-muted rounded-full overflow-hidden">
                                 <div 
-                                  className={`absolute h-full ${colors[flag]}`}
+                                  className={`absolute h-full ${colors[flag as 'green' | 'yellow' | 'red']}`}
                                   style={{ width: `${percentage}%` }} 
                                 />
                               </div>

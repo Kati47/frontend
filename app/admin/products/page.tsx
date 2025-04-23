@@ -26,7 +26,6 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
-  Eye,
   Copy,
 } from "lucide-react"
 import {
@@ -100,7 +99,6 @@ export default function ProductsManagementPage() {
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("All Categories")
-  const [statusFilter, setStatusFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -123,7 +121,7 @@ export default function ProductsManagementPage() {
   // Fetch products from API
   useEffect(() => {
     fetchProducts()
-  }, [currentPage, categoryFilter, statusFilter])
+  }, [currentPage, categoryFilter])
 
   const fetchProducts = async () => {
     try {
@@ -136,13 +134,6 @@ export default function ProductsManagementPage() {
       
       if (categoryFilter !== "All Categories") {
         params.append('category', categoryFilter)
-      }
-      
-      // Handle filtering by status
-      if (statusFilter === "out-of-stock") {
-        params.append('inStock', 'false')
-      } else if (statusFilter === "low-stock") {
-        params.append('lowStock', 'true')
       }
       
       const token = getAuthToken()
@@ -371,34 +362,43 @@ export default function ProductsManagementPage() {
     }
   }
 
+  // Handle search functionality
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setCurrentPage(1) // Reset to first page when searching
+    // The actual filtering is done in the filteredProducts computation
+  }
+
   // Filter products - ensure products is an array before filtering
   const filteredProducts = Array.isArray(products) ? products.filter(product => {
-    const matchesSearch = 
-      (product.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
-      (product._id?.toLowerCase() || "").includes(searchQuery.toLowerCase())
+    // Search by title, id, description or category
+    const matchesSearch = searchQuery === "" || 
+      (product.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) 
+    // If out of stock tab is selected, filter accordingly
+    const stockStatus = product.inStock && product.quantity && product.quantity > 0;
+    const isOutOfStock = !stockStatus;
     
-    const matchesCategory = 
-      categoryFilter === "All Categories" || 
-      (product.categories && product.categories.includes(categoryFilter))
-    
-    if (statusFilter === "all") {
-      return matchesSearch && matchesCategory
-    } else if (statusFilter === "out-of-stock") {
-      return matchesSearch && matchesCategory && (!product.inStock || product.quantity === 0)
-    } else if (statusFilter === "low-stock") {
-      return matchesSearch && matchesCategory && 
-        (product.quantity !== undefined && product.lowStockThreshold !== undefined && 
-         product.quantity <= product.lowStockThreshold && product.quantity > 0)
+    if (product.categories && product.categories.length === 0) {
+      product.categories = ["Uncategorized"];
     }
     
-    return matchesSearch && matchesCategory
+    return matchesSearch;
   }) : []
 
+  // Get products for the current tab
+  const getProductsForTab = (tab: string) => {
+    if (tab === "out-of-stock") {
+      return filteredProducts.filter(p => !p.inStock || p.quantity === 0);
+    }
+    return filteredProducts;
+  }
+
   // Pagination
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
+ const currentTab = "all"; // Default tab, would need to be state-managed if tabs can change
+  const productsForCurrentTab = getProductsForTab(currentTab);  const totalPages = Math.ceil(productsForCurrentTab.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentProducts = filteredProducts.slice(startIndex, endIndex)
+  const currentProducts = productsForCurrentTab.slice(startIndex, endIndex)
 
   return (
     <div className="space-y-6">
@@ -417,7 +417,7 @@ export default function ProductsManagementPage() {
 
       <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between">
         <div className="flex flex-col md:flex-row gap-4 md:items-center">
-          <div className="relative w-full md:w-64">
+          <form onSubmit={handleSearch} className="relative w-full md:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search products..."
@@ -425,7 +425,8 @@ export default function ProductsManagementPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-          </div>
+            <button type="submit" className="sr-only">Search</button>
+          </form>
           
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-full md:w-40">
@@ -437,17 +438,6 @@ export default function ProductsManagementPage() {
                   {category}
                 </SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-          
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full md:w-40">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Products</SelectItem>
-              <SelectItem value="out-of-stock">Out of Stock</SelectItem>
-              <SelectItem value="low-stock">Low Stock</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -479,7 +469,7 @@ export default function ProductsManagementPage() {
                 </Button>
               </CardContent>
             </Card>
-          ) : currentProducts.length === 0 ? (
+          ) : filteredProducts.length === 0 ? (
             <Card>
               <CardContent className="p-6 text-center">
                 <p className="text-muted-foreground">No products found</p>
@@ -499,7 +489,7 @@ export default function ProductsManagementPage() {
                               type="checkbox"
                               className="w-4 h-4 rounded border-gray-300"
                               onChange={handleSelectAll}
-                              checked={selectedProducts.length === currentProducts.length && currentProducts.length > 0}
+                              checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
                             />
                             <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
                           </div>
@@ -514,95 +504,85 @@ export default function ProductsManagementPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {currentProducts.map((product) => {
-                        const statusInfo = getStatusBadge(product)
-                        return (
-                          <tr 
-                            key={product._id} 
-                            className="border-b hover:bg-muted/50"
-                          >
-                            <td className="p-4">
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="w-4 h-4 rounded border-gray-300"
-                                  checked={selectedProducts.includes(product._id || '')}
-                                  onChange={() => product._id && handleSelectProduct(product._id)}
-                                />
-                                <label className="sr-only">checkbox</label>
-                              </div>
-                            </td>
-                            <td className="flex items-center gap-2 px-4 py-3">
-                              <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center overflow-hidden">
-                                <Image
-                                  src={product.img || "/placeholder.png"}
-                                  alt={product.title}
-                                  width={40}
-                                  height={40}
-                                  className="object-cover"
-                                  priority
-                                />
-                              </div>
-                              <span className="font-medium">{product.title}</span>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">
-                              {product._id ? product._id.substring(0, 8) + '...' : 'N/A'}
-                            </td>
-                            <td className="px-4 py-3">{product.categories ? product.categories.join(', ') : 'N/A'}</td>
-                            <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
-                            <td className="px-4 py-3">{product.color || 'N/A'}</td>
-                            <td className="px-4 py-3">{product.size || 'N/A'}</td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex justify-end">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => router.push(`/admin/products/${product._id}`)}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => openEditDialog(product)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => {
-                                      // Logic to duplicate product
-                                      const { _id, ...productWithoutId } = product;
-                                      createProduct({
-                                        ...productWithoutId,
-                                        title: `Copy of ${product.title}`
-                                      })
-                                    }}>
-                                      <Copy className="h-4 w-4 mr-2" />
-                                      Duplicate
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem 
-                                      className="text-red-600"
-                                      onClick={() => product._id && deleteProduct(product._id)}
-                                    >
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
+                      {filteredProducts.slice(startIndex, endIndex).map((product) => (
+                        <tr 
+                          key={product._id} 
+                          className="border-b hover:bg-muted/50"
+                        >
+                          <td className="p-4">
+                            <div className="flex items-center">
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 rounded border-gray-300"
+                                checked={selectedProducts.includes(product._id || '')}
+                                onChange={() => product._id && handleSelectProduct(product._id)}
+                              />
+                              <label className="sr-only">checkbox</label>
+                            </div>
+                          </td>
+                          <td className="flex items-center gap-2 px-4 py-3">
+                            <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center overflow-hidden">
+                              <Image
+                                src={product.img || "/placeholder.png"}
+                                alt={product.title}
+                                width={40}
+                                height={40}
+                                className="object-cover"
+                                priority
+                              />
+                            </div>
+                            <span className="font-medium">{product.title}</span>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {product._id ? product._id.substring(0, 8) + '...' : 'N/A'}
+                          </td>
+                          <td className="px-4 py-3">{product.categories ? product.categories.join(', ') : 'N/A'}</td>
+                          <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
+                          <td className="px-4 py-3">{product.color || 'N/A'}</td>
+                          <td className="px-4 py-3">{product.size || 'N/A'}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => openEditDialog(product)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => {
+                                    // Logic to duplicate product
+                                    const { _id, ...productWithoutId } = product;
+                                    createProduct({
+                                      ...productWithoutId,
+                                      title: `Copy of ${product.title}`
+                                    })
+                                  }}>
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Duplicate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    className="text-red-600"
+                                    onClick={() => product._id && deleteProduct(product._id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -666,11 +646,128 @@ export default function ProductsManagementPage() {
         </TabsContent>
         
         <TabsContent value="out-of-stock">
-          <Card>
-            <CardContent className="flex items-center justify-center h-40">
-              <p className="text-muted-foreground">Out of stock products filtered view</p>
-            </CardContent>
-          </Card>
+          {loading ? (
+            <Card>
+              <CardContent className="p-6 flex justify-center">
+                <p>Loading products...</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <div className="relative overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs uppercase bg-muted/50">
+                      <tr>
+                        <th scope="col" className="p-4">
+                          <div className="flex items-center">
+                            <input
+                              id="checkbox-all-oos"
+                              type="checkbox"
+                              className="w-4 h-4 rounded border-gray-300"
+                              onChange={handleSelectAll}
+                              checked={false}
+                            />
+                            <label htmlFor="checkbox-all-oos" className="sr-only">checkbox</label>
+                          </div>
+                        </th>
+                        <th scope="col" className="px-4 py-3">Product</th>
+                        <th scope="col" className="px-4 py-3">ID</th>
+                        <th scope="col" className="px-4 py-3">Category</th>
+                        <th scope="col" className="px-4 py-3">Price</th>
+                        <th scope="col" className="px-4 py-3">Color</th>
+                        <th scope="col" className="px-4 py-3">Size</th>
+                        <th scope="col" className="px-4 py-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredProducts
+                        .filter(p => !p.inStock || p.quantity === 0)
+                        .map((product) => (
+                          <tr 
+                            key={product._id} 
+                            className="border-b hover:bg-muted/50"
+                          >
+                            <td className="p-4">
+                              <div className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded border-gray-300"
+                                  checked={selectedProducts.includes(product._id || '')}
+                                  onChange={() => product._id && handleSelectProduct(product._id)}
+                                />
+                                <label className="sr-only">checkbox</label>
+                              </div>
+                            </td>
+                            <td className="flex items-center gap-2 px-4 py-3">
+                              <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center overflow-hidden">
+                                <Image
+                                  src={product.img || "/placeholder.png"}
+                                  alt={product.title}
+                                  width={40}
+                                  height={40}
+                                  className="object-cover"
+                                  priority
+                                />
+                              </div>
+                              <span className="font-medium">{product.title}</span>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {product._id ? product._id.substring(0, 8) + '...' : 'N/A'}
+                            </td>
+                            <td className="px-4 py-3">{product.categories ? product.categories.join(', ') : 'N/A'}</td>
+                            <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
+                            <td className="px-4 py-3">{product.color || 'N/A'}</td>
+                            <td className="px-4 py-3">{product.size || 'N/A'}</td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => openEditDialog(product)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => {
+                                      // Logic to duplicate product
+                                      const { _id, ...productWithoutId } = product;
+                                      createProduct({
+                                        ...productWithoutId,
+                                        title: `Copy of ${product.title}`
+                                      })
+                                    }}>
+                                      <Copy className="h-4 w-4 mr-2" />
+                                      Duplicate
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      className="text-red-600"
+                                      onClick={() => product._id && deleteProduct(product._id)}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
