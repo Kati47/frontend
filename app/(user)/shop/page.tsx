@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import ProductCard from "@/components/product/product-card";
 import { useRouter } from "next/navigation";
 
@@ -34,6 +34,10 @@ export default function ShopPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 8; // Show 8 products per page
 
   useEffect(() => {
    // Update the fetch products function with detailed logging at each step
@@ -62,8 +66,8 @@ const fetchProducts = async () => {
       return;
     }
     
-    // Use the correct endpoint for your API
-    const res = await fetch(`${baseUrl}/products/`, {
+    // Use the correct endpoint for your API with no limit parameter to get all products
+    const res = await fetch(`${baseUrl}/products/?limit=1000`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -95,33 +99,66 @@ const fetchProducts = async () => {
     console.log(" Parsing response JSON");
     const data = await res.json();
     console.log("12. API Response data:", data);
+    console.log("12a. API Response data type:", typeof data);
+    console.log("12b. Is array:", Array.isArray(data));
     
-    // Detailed logging of data structure
+    // More detailed logging of data structure
     console.log(" Data type:", typeof data);
     if (Array.isArray(data)) {
       console.log("14. Data is an array with length:", data.length);
     } else if (data && typeof data === 'object') {
       console.log("14. Data is an object with keys:", Object.keys(data));
+      
+      // Log more details about the data structure
+      if (data.products) {
+        console.log("14a. data.products exists, type:", typeof data.products);
+        console.log("14b. data.products length:", Array.isArray(data.products) ? data.products.length : "not an array");
+      }
+      
+      if (data.results) {
+        console.log("14c. data.results exists, type:", typeof data.results);
+        console.log("14d. data.results length:", Array.isArray(data.results) ? data.results.length : "not an array");
+      }
     }
     
-    // Simplify data handling for now
+    // Enhanced data handling to ensure we capture all products
     console.log("Starting data normalization");
     if (Array.isArray(data)) {
       console.log("Setting products directly from array");
       setProducts(data);
-    } else if (data && typeof data === 'object' && data.products) {
-      console.log(" Setting products from data.products property");
-      setProducts(data.products);
     } else if (data && typeof data === 'object') {
-      console.log(" Extracting products from object values");
-      // Last resort - try to extract from object
-      const productsArray = Object.values(data);
-      console.log(" Products array extracted:", productsArray.length);
-      if (productsArray.length > 0) {
-        setProducts(productsArray as Product[]);
+      // Check multiple possible array properties that might contain products
+      if (data.products && Array.isArray(data.products)) {
+        console.log(" Setting products from data.products property");
+        setProducts(data.products);
+      } else if (data.results && Array.isArray(data.results)) {
+        console.log(" Setting products from data.results property");
+        setProducts(data.results);
+      } else if (data.data && Array.isArray(data.data)) {
+        console.log(" Setting products from data.data property");
+        setProducts(data.data);
+      } else if (data.items && Array.isArray(data.items)) {
+        console.log(" Setting products from data.items property");
+        setProducts(data.items);
       } else {
-        console.error("18. No products found in response");
-        throw new Error("No products found in response");
+        console.log(" Extracting products from object values");
+        // Last resort - try to extract from object
+        const productsArray = Object.values(data);
+        console.log(" Products array extracted:", productsArray.length);
+        
+        // Check if the first item looks like a product
+        const firstItem = productsArray[0];
+        if (productsArray.length > 0 && firstItem && typeof firstItem === 'object' && 'title' in firstItem) {
+          console.log(" First item appears to be a product, setting products array");
+          setProducts(productsArray as Product[]);
+        } else if (productsArray.length > 0 && Array.isArray(productsArray[0])) {
+          // Handle nested array case
+          console.log(" First item is an array, using it as products");
+          setProducts(productsArray[0] as Product[]);
+        } else {
+          console.error("18. No products found in response or unable to determine product structure");
+          throw new Error("No products found in response or unexpected data structure");
+        }
       }
     } else {
       console.error("16. Invalid data format");
@@ -149,6 +186,111 @@ const fetchProducts = async () => {
         product.title && product.title.toLowerCase().includes(search.toLowerCase())
       )
     : [];
+    
+  // Reset to first page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
+  // Calculate pagination values
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
+  
+  // Pagination control handlers
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+  
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Handle page number click
+  const handlePageClick = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Generate page number buttons
+  const renderPageNumbers = () => {
+    const pageNumbers = [];
+    const maxPageButtons = 5; // Maximum number of page buttons to show
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+    
+    // Adjust if we're near the end
+    if (endPage - startPage + 1 < maxPageButtons) {
+      startPage = Math.max(1, endPage - maxPageButtons + 1);
+    }
+    
+    // First page
+    if (startPage > 1) {
+      pageNumbers.push(
+        <Button 
+          key={1}
+          variant={currentPage === 1 ? "default" : "outline"}
+          size="sm"
+          onClick={() => handlePageClick(1)}
+          className="mx-1 h-8 w-8 p-0"
+        >
+          1
+        </Button>
+      );
+      
+      if (startPage > 2) {
+        pageNumbers.push(
+          <span key="ellipsis1" className="mx-1">...</span>
+        );
+      }
+    }
+    
+    // Page numbers
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(
+        <Button 
+          key={i}
+          variant={currentPage === i ? "default" : "outline"}
+          size="sm"
+          onClick={() => handlePageClick(i)}
+          className="mx-1 h-8 w-8 p-0"
+        >
+          {i}
+        </Button>
+      );
+    }
+    
+    // Last page
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        pageNumbers.push(
+          <span key="ellipsis2" className="mx-1">...</span>
+        );
+      }
+      
+      pageNumbers.push(
+        <Button 
+          key={totalPages}
+          variant={currentPage === totalPages ? "default" : "outline"}
+          size="sm"
+          onClick={() => handlePageClick(totalPages)}
+          className="mx-1 h-8 w-8 p-0"
+        >
+          {totalPages}
+        </Button>
+      );
+    }
+    
+    return pageNumbers;
+  };
 
   return (
     <div className="container py-8">
@@ -200,10 +342,45 @@ const fetchProducts = async () => {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
-            {filteredProducts.map((product) => (
-              <ProductCard key={product._id} product={product} />
-            ))}
+        {currentProducts.map((product) => (
+          <ProductCard key={product._id} product={product} />
+        ))}
+      </div>
+      
+      {/* Pagination controls */}
+      {filteredProducts.length > 0 && (
+        <div className="flex items-center justify-center mt-10 flex-wrap">
+          <Button 
+            variant="outline" 
+            onClick={handlePrevPage} 
+            disabled={currentPage === 1}
+            className="mr-2"
+            size="sm"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Prev
+          </Button>
+          
+          <div className="flex items-center mx-2">
+            {renderPageNumbers()}
           </div>
+          
+          <Button 
+            variant="outline" 
+            onClick={handleNextPage} 
+            disabled={currentPage === totalPages}
+            className="ml-2"
+            size="sm"
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+          
+          <div className="w-full text-center mt-3 text-sm text-muted-foreground">
+            Showing {indexOfFirstProduct + 1}-{Math.min(indexOfLastProduct, filteredProducts.length)} of {filteredProducts.length} products
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -61,17 +61,18 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-// Type definitions
+// TypeScript interfaces
 interface User {
   _id: string;
   username?: string;
+  name?: string;
   img?: string;
 }
 
 interface Product {
   _id: string;
   title?: string;
-  img?: string[];
+  img?: string[] | string;
 }
 
 interface Review {
@@ -79,30 +80,27 @@ interface Review {
   title: string;
   comment: string;
   rating: number;
-  userId: User;
+  userId: User | string;
   productId: Product;
-  flagLevel?: string;
+  flagLevel?: 'green' | 'yellow' | 'red';
   createdAt: string;
-  status?: string;
 }
 
-interface ReviewsResponse {
-  reviews: Review[];
-  totalReviews: number;
-  totalPages: number;
-  currentPage: number;
-  ratingDistribution: Record<string, number>;
-  flagDistribution?: Record<string, number>;
+interface DeletionReason {
+  value: string;
+  label: string;
 }
 
-interface UserResponse {
-  users: User[];
-  totalUsers: number;
-  totalPages: number;
+interface RatingDistribution {
+  [key: string]: number;
+}
+
+interface FlagDistribution {
+  [key: string]: number;
 }
 
 // Predefined deletion reasons
-const DELETION_REASONS = [
+const DELETION_REASONS: DeletionReason[] = [
   { value: "inappropriate", label: "Inappropriate content" },
   { value: "offensive", label: "Contains offensive language" },
   { value: "spam", label: "Spam or promotional content" },
@@ -110,6 +108,7 @@ const DELETION_REASONS = [
   { value: "misleading", label: "Misleading or false information" },
   { value: "personal_attack", label: "Personal attack on staff" },
   { value: "privacy", label: "Contains personal information" },
+  { value: "other", label: "Other reason" }
 ];
 
 export default function ReviewsManagementPage() {
@@ -121,7 +120,7 @@ export default function ReviewsManagementPage() {
   const [sortFilter, setSortFilter] = useState<string>("newest")
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [selectedReviews, setSelectedReviews] = useState<string[]>([])
-  const [viewMode, setViewMode] = useState<"all" | "product" | "user">("all")
+  const [viewMode, setViewMode] = useState<string>("all")
   
   // Dialog state for deletion reason
   const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false)
@@ -136,16 +135,28 @@ export default function ReviewsManagementPage() {
   const [displayedReviews, setDisplayedReviews] = useState<Review[]>([])
   const [totalReviews, setTotalReviews] = useState<number>(0)
   const [totalPages, setTotalPages] = useState<number>(1)
-  const [ratingDistribution, setRatingDistribution] = useState<Record<string, number>>({})
-  const [flagDistribution, setFlagDistribution] = useState<Record<string, number>>({})
+  const [ratingDistribution, setRatingDistribution] = useState<RatingDistribution>({})
+  const [flagDistribution, setFlagDistribution] = useState<FlagDistribution>({})
   
   // State for review users data
   const [reviewUsers, setReviewUsers] = useState<User[]>([])
   const [totalUsers, setTotalUsers] = useState<number>(0)
   const [totalUserPages, setTotalUserPages] = useState<number>(1)
   
+  // Mapping of user IDs to names
+  const [userNames, setUserNames] = useState<Record<string, string>>({})
+  
+  // Current user ID from local storage
+  const [currentUserId, setCurrentUserId] = useState<string>("")
+  
   const itemsPerPage = 10
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'
+  
+  // Get user ID on component mount
+  useEffect(() => {
+    const userId = getUserIdFromLocalStorage();
+    setCurrentUserId(userId);
+  }, []);
   
   // Function to retrieve the user ID from localStorage
   const getUserIdFromLocalStorage = (): string => {
@@ -169,16 +180,93 @@ export default function ReviewsManagementPage() {
     }
   }
   
+  // Extract user ID from review data
+  const extractUserId = (review: { userId?: User | string }): string | null => {
+    if (!review || !review.userId) return null;
+    
+    // If userId is an object with _id
+    if (typeof review.userId === 'object' && review.userId._id) {
+      return review.userId._id;
+    }
+    
+    // If userId is a string (direct ID)
+    if (typeof review.userId === 'string') {
+      return review.userId;
+    }
+    
+    return null;
+  }
+  
+  // Fetch user names for reviews whenever they change
+  useEffect(() => {
+    // Collect all unique user IDs that need name fetching
+    const pendingUserIds = new Set<string>();
+    
+    displayedReviews.forEach(review => {
+      const userId = extractUserId(review);
+      if (userId && !userNames[userId]) {
+        pendingUserIds.add(userId);
+      }
+    });
+    
+    // Fetch names for all pending user IDs
+    pendingUserIds.forEach(userId => {
+      fetchUserName(userId);
+    });
+  }, [displayedReviews, userNames]);
+  
+  // Fetch user name by ID using the correct endpoint path
+  const fetchUserName = async (userId: string): Promise<void> => {
+    if (!userId || userNames[userId]) return;
+    
+    try {
+      console.log(`Fetching name for user ID from review: ${userId}`);
+      const token = getAuthToken();
+      
+      // Updated to use the correct endpoint structure: /users/:id/name
+      const response = await fetch(`${API_URL}/users/${userId}/name`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        console.error(`Error fetching user name for ${userId}: ${response.status}`);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log(`Name data received for ${userId}:`, data);
+      
+      if (data && data.name) {
+        setUserNames(prev => ({
+          ...prev,
+          [userId]: data.name
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching name for user ${userId}:`, error);
+    }
+  };
+  
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1)
   }, [ratingFilter, sortFilter, viewMode])
   
-  // Fetch all data on initial load
+  // Fetch appropriate data based on viewMode
   useEffect(() => {
-    fetchReviews()
-    fetchReviewUsers()
-  }, [currentPage, ratingFilter, sortFilter])
+    if (viewMode === "all") {
+      fetchAllReviews()
+    } else if (viewMode === "product") {
+      fetchAllReviews() // We'll sort client-side for product view
+    } else if (viewMode === "user") {
+      fetchReviewUsers()
+    }
+  }, [currentPage, ratingFilter, sortFilter, viewMode])
   
   // Filter and search reviews
   useEffect(() => {
@@ -195,9 +283,9 @@ export default function ReviewsManagementPage() {
     } else if (viewMode === "user") {
       // Group reviews by user
       filteredReviews = filteredReviews.sort((a, b) => {
-        const userA = a.userId?.username || (a.userId?._id ? `User ${a.userId._id.substring(0, 6)}` : "Unknown")
-        const userB = b.userId?.username || (b.userId?._id ? `User ${b.userId._id.substring(0, 6)}` : "Unknown")
-        return userA.localeCompare(userB)
+        const userAName = getUserDisplayName(a.userId)
+        const userBName = getUserDisplayName(b.userId)
+        return userAName.localeCompare(userBName)
       })
     }
     
@@ -208,7 +296,7 @@ export default function ReviewsManagementPage() {
         const title = review.title?.toLowerCase() || ""
         const comment = review.comment?.toLowerCase() || ""
         const productName = review.productId?.title?.toLowerCase() || ""
-        const userName = review.userId?.username?.toLowerCase() || ""
+        const userName = getUserDisplayName(review.userId).toLowerCase()
         
         return title.includes(query) || 
                comment.includes(query) || 
@@ -218,14 +306,15 @@ export default function ReviewsManagementPage() {
     }
     
     setDisplayedReviews(filteredReviews)
-  }, [allReviews, viewMode, searchQuery])
+  }, [allReviews, viewMode, searchQuery, userNames])
   
-  const fetchReviews = async () => {
+  // Fetch all reviews
+  const fetchAllReviews = async (): Promise<void> => {
     try {
       setLoading(true)
       setAuthError(false)
       
-      // Build query parameters
+      // Build query parameters based on controller implementation
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: itemsPerPage.toString(),
@@ -237,7 +326,7 @@ export default function ReviewsManagementPage() {
       }
       
       const token = getAuthToken()
-      const userId = getUserIdFromLocalStorage()
+      const userId = currentUserId || getUserIdFromLocalStorage()
       
       if (!token || !userId) {
         console.error("No auth token or user ID found")
@@ -246,6 +335,7 @@ export default function ReviewsManagementPage() {
         return
       }
       
+      console.log(`Fetching reviews with params: ${params}`)
       const response = await fetch(`${API_URL}/reviews?${params}`, {
         method: 'GET',
         headers: {
@@ -265,16 +355,19 @@ export default function ReviewsManagementPage() {
         throw new Error(`Failed to fetch reviews: ${response.status}`)
       }
       
-      const data = await response.json() as ReviewsResponse
+      const data = await response.json()
+      console.log("Reviews data received:", data)
       
       setAllReviews(data.reviews)
       setDisplayedReviews(data.reviews)
       setTotalReviews(data.totalReviews)
       setTotalPages(data.totalPages)
       setRatingDistribution(data.ratingDistribution)
+      
       if (data.flagDistribution) {
         setFlagDistribution(data.flagDistribution)
       }
+      
       setLoading(false)
     } catch (error) {
       console.error("Error fetching reviews:", error)
@@ -282,20 +375,26 @@ export default function ReviewsManagementPage() {
     }
   }
   
-  const fetchReviewUsers = async () => {
+  // Fetch users who've written reviews
+  const fetchReviewUsers = async (): Promise<void> => {
     try {
+      setLoading(true)
+      
       const params = new URLSearchParams({
-        page: '1',
-        limit: '100' // Get more users in one request
+        page: currentPage.toString(),
+        limit: itemsPerPage.toString()
       })
       
       const token = getAuthToken()
-      const userId = getUserIdFromLocalStorage()
+      const userId = currentUserId || getUserIdFromLocalStorage()
       
       if (!token || !userId) {
+        setAuthError(true)
+        setLoading(false)
         return
       }
       
+      console.log(`Fetching review users with params: ${params}`)
       const response = await fetch(`${API_URL}/reviews/users?${params}`, {
         method: 'GET',
         headers: {
@@ -305,21 +404,84 @@ export default function ReviewsManagementPage() {
         credentials: 'include'
       })
       
+      if (response.status === 401) {
+        setAuthError(true)
+        setLoading(false)
+        return
+      }
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch review users: ${response.status}`)
       }
       
-      const data = await response.json() as UserResponse
+      const data = await response.json()
+      console.log("Review users data received:", data)
       
       setReviewUsers(data.users)
       setTotalUsers(data.totalUsers)
       setTotalUserPages(data.totalPages)
+      
+      // Fetch names for all users
+      data.users.forEach((user: User) => {
+        if (user._id) {
+          fetchUserName(user._id);
+        }
+      });
+      
+      // Also fetch reviews by the first user to display
+      if (data.users.length > 0) {
+        await fetchUserReviews(data.users[0]._id)
+      } else {
+        setAllReviews([])
+        setDisplayedReviews([])
+      }
+      
+      setLoading(false)
     } catch (error) {
       console.error("Error fetching review users:", error)
+      setLoading(false)
     }
   }
   
-  const handleDeleteClick = (review: Review) => {
+  // Fetch reviews by a specific user
+  const fetchUserReviews = async (userId: string): Promise<void> => {
+    try {
+      const token = getAuthToken()
+      
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '50' // Get more reviews to show for this user
+      })
+      
+      console.log(`Fetching reviews for user: ${userId}`)
+      const response = await fetch(`${API_URL}/reviews/user/${userId}?${params}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user reviews: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log("User reviews received:", data)
+      
+      // Make sure we have the name for this user
+      fetchUserName(userId);
+      
+      setAllReviews(data.reviews)
+      setDisplayedReviews(data.reviews)
+    } catch (error) {
+      console.error(`Error fetching reviews for user ${userId}:`, error)
+    }
+  }
+  
+  // Delete a review
+  const handleDeleteClick = (review: Review): void => {
     setReviewToDelete(review)
     setDeletionReason("")
     setCustomReason("")
@@ -327,7 +489,7 @@ export default function ReviewsManagementPage() {
     setDeleteDialogOpen(true)
   }
   
-  const confirmDeleteReview = async () => {
+  const confirmDeleteReview = async (): Promise<void> => {
     // Validate a reason was selected
     if (!deletionReason) {
       setDeleteError("Please select a reason for deletion")
@@ -348,9 +510,9 @@ export default function ReviewsManagementPage() {
     try {
       setDeleteLoading(true)
       const token = getAuthToken()
-      const currentUserId = getUserIdFromLocalStorage()
+      const userId = currentUserId || getUserIdFromLocalStorage()
       
-      if (!token || !currentUserId) {
+      if (!token || !userId) {
         console.error("No auth token or user ID found")
         alert("You must be logged in to perform this action")
         setDeleteDialogOpen(false)
@@ -363,7 +525,10 @@ export default function ReviewsManagementPage() {
         details: customReason || undefined
       }
       
-      const response = await fetch(`${API_URL}/reviews/${reviewToDelete._id}?userId=${currentUserId}`, {
+      console.log("Delete request data:", deleteData);
+      
+      // Match the API implementation for review deletion
+      const response = await fetch(`${API_URL}/reviews/${reviewToDelete._id}?userId=${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -381,8 +546,9 @@ export default function ReviewsManagementPage() {
       }
       
       if (response.status === 401 || response.status === 403) {
-        alert("You are not authorized to perform this action")
-        setDeleteDialogOpen(false)
+        const data = await response.json()
+        setDeleteError(data.message || "You are not authorized to perform this action");
+        setDeleteLoading(false)
         return
       }
       
@@ -390,19 +556,25 @@ export default function ReviewsManagementPage() {
         throw new Error(`Failed to delete review: ${response.status}`)
       }
       
-      // Refresh the data
-      fetchReviews()
+      // Refresh the data based on current view mode
+      if (viewMode === "user") {
+        fetchReviewUsers()
+      } else {
+        fetchAllReviews()
+      }
+      
       setDeleteDialogOpen(false)
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error deleting review:", error)
-      setDeleteError("Failed to delete review: " + error.message)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setDeleteError("Failed to delete review: " + errorMessage)
     } finally {
       setDeleteLoading(false)
     }
   }
   
   // Handle select all
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>): void => {
     if (e.target.checked) {
       setSelectedReviews(displayedReviews.map(review => review._id))
     } else {
@@ -411,7 +583,7 @@ export default function ReviewsManagementPage() {
   }
 
   // Handle single select
-  const handleSelectReview = (reviewId: string) => {
+  const handleSelectReview = (reviewId: string): void => {
     if (selectedReviews.includes(reviewId)) {
       setSelectedReviews(selectedReviews.filter(id => id !== reviewId))
     } else {
@@ -420,7 +592,7 @@ export default function ReviewsManagementPage() {
   }
   
   // Format date
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric', 
       month: 'short', 
@@ -429,8 +601,25 @@ export default function ReviewsManagementPage() {
   }
   
   // Redirect to login if not authenticated
-  const handleAuthError = () => {
+  const handleAuthError = (): void => {
     router.push('/login?redirect=/admin/reviews')
+  }
+  
+  // Get product image URL
+  const getProductImageUrl = (product: Product | null | undefined): string | null => {
+    if (!product) return null;
+    
+    // Check if img is an array
+    if (Array.isArray(product.img) && product.img.length > 0) {
+      return product.img[0];
+    }
+    
+    // Check if img is a string
+    if (typeof product.img === 'string' && product.img) {
+      return product.img;
+    }
+    
+    return null;
   }
   
   // Rating stars display component
@@ -453,7 +642,7 @@ export default function ReviewsManagementPage() {
   }
 
   // Get badge color based on flag level
-  const getFlagBadgeColor = (flagLevel?: string) => {
+  const getFlagBadgeColor = (flagLevel: string | undefined): string => {
     switch (flagLevel) {
       case 'green': return 'bg-green-100 text-green-800'
       case 'yellow': return 'bg-yellow-100 text-yellow-800'
@@ -462,11 +651,27 @@ export default function ReviewsManagementPage() {
     }
   }
 
-  // Get user display name - never return "Anonymous"
-  const getUserDisplayName = (user?: User) => {
-    if (user?.username) return user.username
-    if (user?._id) return `User ${user._id.substring(0, 8)}`
-    return "User ID not available"
+  // Get user display name using the fetched names from getUserNameById
+  const getUserDisplayName = (user: User | string | undefined | null): string => {
+    if (!user) return "User not available";
+    
+    // Get the user ID first
+    const userId = extractUserId({userId: user});
+    
+    if (!userId) return "User ID not available";
+    
+    // Check if we have the name in our cache
+    if (userNames[userId]) {
+      return userNames[userId];
+    }
+    
+    // Use username if available
+    if (typeof user === 'object' && user.username) {
+      return user.username;
+    }
+    
+    // Show formatted user ID while loading the name
+    return `User ${userId.substring(0, 8)}...`;
   }
 
   // If there's an auth error, show login prompt
@@ -506,7 +711,7 @@ export default function ReviewsManagementPage() {
             />
           </div>
           
-          <Select value={viewMode} onValueChange={(value: "all" | "product" | "user") => setViewMode(value)}>
+          <Select value={viewMode} onValueChange={(value) => setViewMode(value)}>
             <SelectTrigger className="w-full md:w-40">
               <SelectValue placeholder="View Mode" />
             </SelectTrigger>
@@ -615,7 +820,7 @@ export default function ReviewsManagementPage() {
                               {viewMode === "user" ? (
                                 <div className="flex items-center gap-2">
                                   <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                                    {review.userId?.img ? (
+                                    {typeof review.userId === 'object' && review.userId?.img ? (
                                       <Image
                                         src={review.userId.img}
                                         alt={getUserDisplayName(review.userId)}
@@ -637,10 +842,10 @@ export default function ReviewsManagementPage() {
                                     <TooltipTrigger asChild>
                                       <div className="flex items-center gap-2">
                                         <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center overflow-hidden">
-                                          {review.productId?.img?.[0] ? (
+                                          {getProductImageUrl(review.productId) ? (
                                             <Image
-                                              src={review.productId.img[0]}
-                                              alt={review.productId.title || "Product"}
+                                              src={getProductImageUrl(review.productId) as string}
+                                              alt={review.productId?.title || "Product"}
                                               width={40}
                                               height={40}
                                               className="object-cover"
@@ -780,7 +985,7 @@ export default function ReviewsManagementPage() {
                         {['green', 'yellow', 'red'].map((flag) => {
                           const count = flagDistribution[flag] || 0
                           const percentage = totalReviews > 0 ? Math.round((count / totalReviews) * 100) : 0
-                          const colors: Record<'green' | 'yellow' | 'red', string> = {
+                          const colors: Record<string, string> = {
                             green: 'bg-green-500',
                             yellow: 'bg-yellow-500',
                             red: 'bg-red-500'
@@ -795,7 +1000,7 @@ export default function ReviewsManagementPage() {
                               </div>
                               <div className="relative w-full h-4 bg-muted rounded-full overflow-hidden">
                                 <div 
-                                  className={`absolute h-full ${colors[flag as 'green' | 'yellow' | 'red']}`}
+                                  className={`absolute h-full ${colors[flag]}`}
                                   style={{ width: `${percentage}%` }} 
                                 />
                               </div>
@@ -933,7 +1138,6 @@ export default function ReviewsManagementPage() {
                       {reason.label}
                     </SelectItem>
                   ))}
-                  <SelectItem value="other">Other (specify)</SelectItem>
                 </SelectContent>
               </Select>
               {deleteError && !deletionReason && (
@@ -956,6 +1160,12 @@ export default function ReviewsManagementPage() {
                 {deleteError && deletionReason === "other" && !customReason && (
                   <p className="text-xs text-red-500">Please provide additional details</p>
                 )}
+              </div>
+            )}
+
+            {deleteError && !(deletionReason === "other" && !customReason) && !(deletionReason === "") && (
+              <div className="rounded-md bg-red-50 border border-red-200 p-3">
+                <p className="text-sm text-red-800">{deleteError}</p>
               </div>
             )}
 
@@ -982,9 +1192,7 @@ export default function ReviewsManagementPage() {
                   <span className="mr-2">Deleting</span>
                   <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
                 </>
-              ) : (
-                "Delete Review"
-              )}
+              ) : "Delete Review"}
             </Button>
           </DialogFooter>
         </DialogContent>
