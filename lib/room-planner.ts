@@ -838,6 +838,27 @@ class RoomPlanner {
       this.showGrid = state.grid;
     }
   }
+  
+  // Add the getRoomState method for 2D to 3D conversion
+  getRoomState() {
+    return {
+      furniture: this.room.furniturePieces.map(item => ({
+        id: Math.random().toString(36).substring(2, 9),
+        type: item.type,
+        x: item.rect.x,
+        y: item.rect.y,
+        width: item.rect.width,
+        height: item.rect.height,
+        rotation: item.angle,
+        color: item.color,
+        style: item.type.toLowerCase()
+      })),
+      dimensions: {
+        width: this.canvas.width,
+        height: this.canvas.height
+      }
+    };
+  }
 }
 
 // Helper extension to Math

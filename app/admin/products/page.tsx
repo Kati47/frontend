@@ -94,7 +94,7 @@ const defaultNewProduct: Product = {
 
 export default function ProductsManagementPage() {
   const router = useRouter()
-  const [products, setProducts] = useState<Product[]>([])
+  const [allProducts, setAllProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -118,27 +118,19 @@ export default function ProductsManagementPage() {
     }
   }
 
-  // Fetch products from API
+  // Fetch all products from API
   useEffect(() => {
-    fetchProducts()
-  }, [currentPage, categoryFilter])
+    fetchAllProducts()
+  }, [])
 
-  const fetchProducts = async () => {
+  const fetchAllProducts = async () => {
     try {
       setLoading(true)
       
-      // Build query parameters
-      const params = new URLSearchParams()
-      params.append('page', currentPage.toString())
-      params.append('limit', itemsPerPage.toString())
-      
-      if (categoryFilter !== "All Categories") {
-        params.append('category', categoryFilter)
-      }
-      
       const token = getAuthToken()
       
-      const response = await fetch(`${API_URL}/products?${params.toString()}`, {
+      // Fetch all products without pagination
+      const response = await fetch(`${API_URL}/products`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -158,7 +150,7 @@ export default function ProductsManagementPage() {
                           (data.products ? data.products : [])
       
       console.log("Fetched products:", productsArray)
-      setProducts(productsArray)
+      setAllProducts(productsArray)
       setLoading(false)
     } catch (err) {
       console.error("Error fetching products:", err)
@@ -190,8 +182,9 @@ export default function ProductsManagementPage() {
         throw new Error(`Error: ${response.status}`)
       }
       
-      // Refetch products after deletion
-      fetchProducts()
+      // Update local state instead of refetching
+      setAllProducts(prevProducts => prevProducts.filter(p => p._id !== productId))
+      
       toast({
         title: "Success",
         description: "Product deleted successfully",
@@ -226,8 +219,13 @@ export default function ProductsManagementPage() {
         throw new Error(`Error: ${response.status}`)
       }
       
-      // Refetch products after update
-      fetchProducts()
+      const updatedProduct = await response.json()
+      
+      // Update product in local state
+      setAllProducts(prevProducts => 
+        prevProducts.map(p => p._id === productId ? updatedProduct : p)
+      )
+      
       setEditDialogOpen(false)
       toast({
         title: "Success",
@@ -265,8 +263,11 @@ export default function ProductsManagementPage() {
         throw new Error(`Error: ${response.status}`)
       }
       
-      // Refetch products after creation
-      fetchProducts()
+      const newProductData = await response.json()
+      
+      // Add new product to local state
+      setAllProducts(prevProducts => [...prevProducts, newProductData])
+      
       setNewProductDialogOpen(false)
       setNewProduct(defaultNewProduct)
       toast({
@@ -344,46 +345,23 @@ export default function ProductsManagementPage() {
     }).format(amount)
   }
 
-  // Handle select all
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedProducts(filteredProducts.map(product => product._id || ''))
-    } else {
-      setSelectedProducts([])
-    }
-  }
-
-  // Handle single select
-  const handleSelectProduct = (productId: string) => {
-    if (selectedProducts.includes(productId)) {
-      setSelectedProducts(selectedProducts.filter(id => id !== productId))
-    } else {
-      setSelectedProducts([...selectedProducts, productId])
-    }
-  }
-
-  // Handle search functionality
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setCurrentPage(1) // Reset to first page when searching
-    // The actual filtering is done in the filteredProducts computation
-  }
-
-  // Filter products - ensure products is an array before filtering
-  const filteredProducts = Array.isArray(products) ? products.filter(product => {
-    // Search by title, id, description or category
+  // Filter products based on search and category
+  const filteredProducts = allProducts.filter(product => {
+    // First check if it passes the search filter
     const matchesSearch = searchQuery === "" || 
-      (product.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) 
-    // If out of stock tab is selected, filter accordingly
-    const stockStatus = product.inStock && product.quantity && product.quantity > 0;
-    const isOutOfStock = !stockStatus;
+      (product.title?.toLowerCase() || "").includes(searchQuery.toLowerCase());
     
-    if (product.categories && product.categories.length === 0) {
+    // Then check if it passes the category filter
+    const matchesCategory = categoryFilter === "All Categories" || 
+      (product.categories?.includes(categoryFilter));
+    
+    // Initialize categories if empty
+    if (!product.categories || product.categories.length === 0) {
       product.categories = ["Uncategorized"];
     }
     
-    return matchesSearch;
-  }) : []
+    return matchesSearch && matchesCategory;
+  });
 
   // Get products for the current tab
   const getProductsForTab = (tab: string) => {
@@ -393,13 +371,41 @@ export default function ProductsManagementPage() {
     return filteredProducts;
   }
 
-  // Pagination
- const currentTab = "all"; // Default tab, would need to be state-managed if tabs can change
-  const productsForCurrentTab = getProductsForTab(currentTab);  const totalPages = Math.ceil(productsForCurrentTab.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentProducts = productsForCurrentTab.slice(startIndex, endIndex)
+  // Handle select all
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>, products: Product[]) => {
+    if (e.target.checked) {
+      setSelectedProducts(products.map(product => product._id || '').filter(id => id));
+    } else {
+      setSelectedProducts([]);
+    }
+  }
 
+  // Handle single select
+  const handleSelectProduct = (productId: string) => {
+    if (selectedProducts.includes(productId)) {
+      setSelectedProducts(selectedProducts.filter(id => id !== productId));
+    } else {
+      setSelectedProducts([...selectedProducts, productId]);
+    }
+  }
+
+  // Handle search functionality
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1); // Reset to first page when searching
+  }
+
+  // Pagination
+  const currentTab = "all"; // Default tab
+  const productsForCurrentTab = getProductsForTab(currentTab);
+  const totalPages = Math.ceil(productsForCurrentTab.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentProducts = productsForCurrentTab.slice(startIndex, endIndex);
+
+  // Get out of stock products for tab
+  const outOfStockProducts = getProductsForTab("out-of-stock");
+  
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -446,7 +452,7 @@ export default function ProductsManagementPage() {
       <Tabs defaultValue="all" className="space-y-4">
         <TabsList>
           <TabsTrigger value="all">All Products</TabsTrigger>
-          <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
+          <TabsTrigger value="out-of-stock">Out of Stock ({outOfStockProducts.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
@@ -463,7 +469,7 @@ export default function ProductsManagementPage() {
                 <Button 
                   variant="outline" 
                   className="mt-4"
-                  onClick={fetchProducts}
+                  onClick={fetchAllProducts}
                 >
                   Try Again
                 </Button>
@@ -488,8 +494,8 @@ export default function ProductsManagementPage() {
                               id="checkbox-all"
                               type="checkbox"
                               className="w-4 h-4 rounded border-gray-300"
-                              onChange={handleSelectAll}
-                              checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                              onChange={(e) => handleSelectAll(e, currentProducts)}
+                              checked={currentProducts.length > 0 && selectedProducts.length === currentProducts.length}
                             />
                             <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
                           </div>
@@ -504,7 +510,7 @@ export default function ProductsManagementPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredProducts.slice(startIndex, endIndex).map((product) => (
+                      {currentProducts.map((product) => (
                         <tr 
                           key={product._id} 
                           className="border-b hover:bg-muted/50"
@@ -665,8 +671,9 @@ export default function ProductsManagementPage() {
                               id="checkbox-all-oos"
                               type="checkbox"
                               className="w-4 h-4 rounded border-gray-300"
-                              onChange={handleSelectAll}
-                              checked={false}
+                              onChange={(e) => handleSelectAll(e, outOfStockProducts)}
+                              checked={outOfStockProducts.length > 0 && 
+                                outOfStockProducts.every(p => p._id && selectedProducts.includes(p._id))}
                             />
                             <label htmlFor="checkbox-all-oos" className="sr-only">checkbox</label>
                           </div>
@@ -681,87 +688,85 @@ export default function ProductsManagementPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredProducts
-                        .filter(p => !p.inStock || p.quantity === 0)
-                        .map((product) => (
-                          <tr 
-                            key={product._id} 
-                            className="border-b hover:bg-muted/50"
-                          >
-                            <td className="p-4">
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  className="w-4 h-4 rounded border-gray-300"
-                                  checked={selectedProducts.includes(product._id || '')}
-                                  onChange={() => product._id && handleSelectProduct(product._id)}
-                                />
-                                <label className="sr-only">checkbox</label>
-                              </div>
-                            </td>
-                            <td className="flex items-center gap-2 px-4 py-3">
-                              <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center overflow-hidden">
-                                <Image
-                                  src={product.img || "/placeholder.png"}
-                                  alt={product.title}
-                                  width={40}
-                                  height={40}
-                                  className="object-cover"
-                                  priority
-                                />
-                              </div>
-                              <span className="font-medium">{product.title}</span>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">
-                              {product._id ? product._id.substring(0, 8) + '...' : 'N/A'}
-                            </td>
-                            <td className="px-4 py-3">{product.categories ? product.categories.join(', ') : 'N/A'}</td>
-                            <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
-                            <td className="px-4 py-3">{product.color || 'N/A'}</td>
-                            <td className="px-4 py-3">{product.size || 'N/A'}</td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex justify-end">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => openEditDialog(product)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => {
-                                      // Logic to duplicate product
-                                      const { _id, ...productWithoutId } = product;
-                                      createProduct({
-                                        ...productWithoutId,
-                                        title: `Copy of ${product.title}`
-                                      })
-                                    }}>
-                                      <Copy className="h-4 w-4 mr-2" />
-                                      Duplicate
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem 
-                                      className="text-red-600"
-                                      onClick={() => product._id && deleteProduct(product._id)}
-                                    >
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                      {outOfStockProducts.map((product) => (
+                        <tr 
+                          key={product._id} 
+                          className="border-b hover:bg-muted/50"
+                        >
+                          <td className="p-4">
+                            <div className="flex items-center">
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 rounded border-gray-300"
+                                checked={selectedProducts.includes(product._id || '')}
+                                onChange={() => product._id && handleSelectProduct(product._id)}
+                              />
+                              <label className="sr-only">checkbox</label>
+                            </div>
+                          </td>
+                          <td className="flex items-center gap-2 px-4 py-3">
+                            <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center overflow-hidden">
+                              <Image
+                                src={product.img || "/placeholder.png"}
+                                alt={product.title}
+                                width={40}
+                                height={40}
+                                className="object-cover"
+                                priority
+                              />
+                            </div>
+                            <span className="font-medium">{product.title}</span>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {product._id ? product._id.substring(0, 8) + '...' : 'N/A'}
+                          </td>
+                          <td className="px-4 py-3">{product.categories ? product.categories.join(', ') : 'N/A'}</td>
+                          <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
+                          <td className="px-4 py-3">{product.color || 'N/A'}</td>
+                          <td className="px-4 py-3">{product.size || 'N/A'}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => openEditDialog(product)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => {
+                                    // Logic to duplicate product
+                                    const { _id, ...productWithoutId } = product;
+                                    createProduct({
+                                      ...productWithoutId,
+                                      title: `Copy of ${product.title}`
+                                    })
+                                  }}>
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Duplicate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    className="text-red-600"
+                                    onClick={() => product._id && deleteProduct(product._id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -774,7 +779,7 @@ export default function ProductsManagementPage() {
       {/* Edit Product Dialog */}
       {currentProduct && (
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Product</DialogTitle>
               <DialogDescription>
@@ -802,8 +807,8 @@ export default function ProductsManagementPage() {
                     id="product-price"
                     type="number"
                     step="0.01"
-                    value={currentProduct.price || 0}
-                    onChange={(e) => setCurrentProduct({...currentProduct, price: parseFloat(e.target.value)})}
+                    value={String(currentProduct.price || 0)}
+                    onChange={(e) => setCurrentProduct({...currentProduct, price: parseFloat(e.target.value) || 0})}
                     className="col-span-3"
                   />
                 </div>
@@ -890,8 +895,8 @@ export default function ProductsManagementPage() {
                   <Input
                     id="product-quantity"
                     type="number"
-                    value={currentProduct.quantity || 0}
-                    onChange={(e) => setCurrentProduct({...currentProduct, quantity: parseInt(e.target.value)})}
+                    value={String(currentProduct.quantity || 0)}
+                    onChange={(e) => setCurrentProduct({...currentProduct, quantity: parseInt(e.target.value) || 0})}
                     className="col-span-3"
                   />
                 </div>
@@ -926,7 +931,7 @@ export default function ProductsManagementPage() {
 
       {/* New Product Dialog */}
       <Dialog open={newProductDialogOpen} onOpenChange={setNewProductDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Product</DialogTitle>
             <DialogDescription>
@@ -955,8 +960,8 @@ export default function ProductsManagementPage() {
                   id="new-product-price"
                   type="number"
                   step="0.01"
-                  value={newProduct.price}
-                  onChange={(e) => setNewProduct({...newProduct, price: parseFloat(e.target.value)})}
+                  value={String(newProduct.price || 0)}
+                  onChange={(e) => setNewProduct({...newProduct, price: parseFloat(e.target.value) || 0})}
                   className="col-span-3"
                   required
                 />
@@ -1044,8 +1049,8 @@ export default function ProductsManagementPage() {
                 <Input
                   id="new-product-quantity"
                   type="number"
-                  value={newProduct.quantity}
-                  onChange={(e) => setNewProduct({...newProduct, quantity: parseInt(e.target.value)})}
+                  value={String(newProduct.quantity || 0)}
+                  onChange={(e) => setNewProduct({...newProduct, quantity: parseInt(e.target.value) || 0})}
                   className="col-span-3"
                   required
                 />

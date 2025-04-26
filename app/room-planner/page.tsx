@@ -30,6 +30,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import dynamic from 'next/dynamic';
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+
+// Dynamically import the 3D component with no SSR to avoid React hydration issues
+const RoomPlanner3DView = dynamic(
+  () => import('@/components/room-planner-3d/RoomPlan3D').then(mod => mod.RoomPlanner3DView),
+  { ssr: false }
+);
 
 // API base URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
@@ -63,6 +72,7 @@ declare global {
       rotateSelectedItem: (angle: number) => void;   // Set rotation angle
       deleteSelectedItem: () => void;                // Delete the selected item
       duplicateSelectedItem: () => void;             // Duplicate the selected item
+      getRoomState: () => any; // Get current room state for 3D rendering
     };
   }
 }
@@ -83,26 +93,40 @@ interface Product {
   colors?: string[];
 }
 
+// Furniture item interface for type safety
+interface FurnitureItem {
+  type: string;
+  x: number;
+  y: number;
+  rotation?: number;
+  color?: string;
+  style?: string;
+  width?: number;
+  height?: number;
+  id?: string;
+}
+
 // Saved design interface
 interface SavedDesign {
   name: string;
   data: {
-    furniture?: Array<{
-      type: string;
-      x: number;
-      y: number;
-      rotation?: number;
-      color?: string;
-      style?: string;
-      width?: number;
-      height?: number;
-      id?: string;
-    }>;
+    furniture?: FurnitureItem[];
     dimensions?: {
       width: number;
       height: number;
     };
   };
+}
+
+// Selected item interface for better type safety
+interface SelectedItem {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
 }
 
 export default function RoomPlannerPage() {
@@ -120,7 +144,7 @@ export default function RoomPlannerPage() {
   const [recommendationsOpen, setRecommendationsOpen] = useState(false);
   
   // New state for managing furniture interaction
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
@@ -139,6 +163,10 @@ export default function RoomPlannerPage() {
   // Authentication state
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+
+  // New state for view mode and current room state
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+  const [currentRoomState, setCurrentRoomState] = useState<any>(null);
   
   // Update canvas rect for accurate positioning
   const updateCanvasRect = useCallback(() => {
@@ -167,15 +195,17 @@ export default function RoomPlannerPage() {
     if (selected) {
       // Item was selected
       const item = window.roomPlanner.getSelectedItem();
-      setSelectedItem(item);
-      
-      // Store initial state for the interaction
-      setIsDragging(true);
-      setDragStartPoint({ x, y });
-      setItemStartPosition({ x: item!.x, y: item!.y });
-      setItemStartDimensions({ width: item!.width, height: item!.height });
-      setItemStartRotation(item!.rotation || 0);
-      setInteractionMode('move');
+      if (item) {
+        setSelectedItem(item);
+        
+        // Store initial state for the interaction
+        setIsDragging(true);
+        setDragStartPoint({ x, y });
+        setItemStartPosition({ x: item.x, y: item.y });
+        setItemStartDimensions({ width: item.width, height: item.height });
+        setItemStartRotation(item.rotation || 0);
+        setInteractionMode('move');
+      }
     } else {
       // Nothing selected, clear selection
       setSelectedItem(null);
@@ -230,7 +260,10 @@ export default function RoomPlannerPage() {
     }
     
     // Update selected item state
-    setSelectedItem(window.roomPlanner.getSelectedItem());
+    const updatedItem = window.roomPlanner.getSelectedItem();
+    if (updatedItem) {
+      setSelectedItem(updatedItem);
+    }
   }, [isDragging, interactionMode, dragStartPoint, itemStartPosition, itemStartDimensions, itemStartRotation, canvasRect, selectedItem]);
   
   // Mouse up handler
@@ -242,7 +275,10 @@ export default function RoomPlannerPage() {
       
       // Update selected item state once more
       if (window.roomPlanner) {
-        setSelectedItem(window.roomPlanner.getSelectedItem());
+        const updatedItem = window.roomPlanner.getSelectedItem();
+        if (updatedItem) {
+          setSelectedItem(updatedItem);
+        }
       }
     }
   }, [isDragging]);
@@ -291,7 +327,10 @@ export default function RoomPlannerPage() {
     if (!selectedItem || !window.roomPlanner) return;
     
     window.roomPlanner.duplicateSelectedItem();
-    setSelectedItem(window.roomPlanner.getSelectedItem());
+    const newItem = window.roomPlanner.getSelectedItem();
+    if (newItem) {
+      setSelectedItem(newItem);
+    }
   }, [selectedItem]);
   
   // Load authentication data on mount
@@ -600,6 +639,29 @@ export default function RoomPlannerPage() {
   // Available furniture items
   const furnitureItems = ["Bed", "Desk", "Chair", "Sofa", "Table", "Dresser", "TV", "Lamp", "Nightstand", "Rug", "Door", "Window"];
 
+  // Toggle view mode between 2D and 3D
+  const toggleViewMode = () => {
+    if (viewMode === "2d") {
+      // Get current room state for 3D rendering
+      if (window.roomPlanner) {
+        try {
+          const roomState = window.roomPlanner.getRoomState();
+          setCurrentRoomState(roomState);
+          setViewMode("3d");
+        } catch (err) {
+          console.error("Failed to get room state for 3D view:", err);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to generate 3D view. Please try again.",
+          });
+        }
+      }
+    } else {
+      setViewMode("2d");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full min-h-screen">
       <div className="border-b">
@@ -703,12 +765,13 @@ export default function RoomPlannerPage() {
                     // Create furniture summary
                     const furnitureSummary = design.data.furniture 
                       ? Object.entries(
-                          design.data.furniture.reduce((acc: {[key: string]: number}, item) => {
-                            acc[item.type] = (acc[item.type] || 0) + 1;
+                          design.data.furniture.reduce((acc: Record<string, number>, item) => {
+                            const type = item.type;
+                            acc[type] = (acc[type] || 0) + 1;
                             return acc;
                           }, {})
                         )
-                          .map(([type, count]) => `${count as number} ${type}${(count as number) > 1 ? 's' : ''}`)
+                          .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
                           .join(', ')
                       : 'No items';
                     
@@ -913,28 +976,45 @@ export default function RoomPlannerPage() {
             </div>
           )}
           
-          {/* Canvas for room planner */}
-          <canvas 
-            ref={canvasRef}
-            className="w-full h-full"
-            style={{ 
-              display: loaded ? 'block' : 'none',
-              cursor: isDragging 
-                ? (interactionMode === 'move' 
-                  ? 'grabbing' 
-                  : interactionMode === 'resize' 
-                    ? 'nwse-resize'
-                    : 'move')
-                : selectedItem ? 'grab' : 'default'
-            }}
-            onMouseDown={handleCanvasMouseDown}
-            onMouseMove={handleCanvasMouseMove}
-            onMouseUp={handleCanvasMouseUp}
-            onMouseLeave={handleCanvasMouseUp}
-          ></canvas>
+          {/* View mode toggle */}
+          {loaded && (
+            <div className="absolute top-4 right-4 z-20 bg-white bg-opacity-80 p-2 rounded-md shadow-md flex items-center space-x-2">
+              <Label htmlFor="view-mode" className="text-sm font-medium">2D</Label>
+              <Switch
+                id="view-mode"
+                checked={viewMode === "3d"}
+                onCheckedChange={() => toggleViewMode()}
+              />
+              <Label htmlFor="view-mode" className="text-sm font-medium">3D</Label>
+            </div>
+          )}
           
-          {/* Selection overlay with resize handles */}
-          {selectedItem && !isDragging && loaded && (
+          {/* 2D Canvas */}
+          {viewMode === "2d" ? (
+            <canvas 
+              ref={canvasRef}
+              className="w-full h-full"
+              style={{ 
+                display: loaded ? 'block' : 'none',
+                cursor: isDragging 
+                  ? (interactionMode === 'move' 
+                    ? 'grabbing' 
+                    : interactionMode === 'resize' 
+                      ? 'nwse-resize'
+                      : 'move')
+                  : selectedItem ? 'grab' : 'default'
+              }}
+              onMouseDown={handleCanvasMouseDown}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseUp={handleCanvasMouseUp}
+              onMouseLeave={handleCanvasMouseUp}
+            ></canvas>
+          ) : (
+            <RoomPlanner3DView roomState={currentRoomState} />
+          )}
+          
+          {/* Selection overlay for 2D mode */}
+          {viewMode === "2d" && selectedItem && !isDragging && loaded && (
             <div 
               className="absolute pointer-events-none"
               style={{

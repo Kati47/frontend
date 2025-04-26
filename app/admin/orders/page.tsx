@@ -1,19 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { 
   Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+  CardContent
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -21,819 +15,590 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Download, 
   Search,
-  Filter,
-  Plus,
-  Pencil,
-  Trash2,
   MoreHorizontal,
-  ArrowUpDown,
-  Upload,
-  Copy,
-  Package,
-  Clock,
+  RefreshCcw,
+  Eye,
+  Truck,
+  Printer,
   AlertCircle,
-  Loader2,
-  X,
-  FileText,
-  Receipt
+  Check
 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { toast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/components/ui/use-toast"
+import { Toaster } from "@/components/ui/toaster"
+import { Spinner } from "@/components/ui/spinner"
 
-// API base URL
-const API_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:5000/api/v1';
-
-// Status filters
-const statusOptions = [
+// Order status options
+const orderStatuses = [
   "All Statuses",
   "pending",
   "processing",
-  "shipped", 
+  "shipped",
   "delivered",
   "cancelled",
   "refunded"
 ]
 
-// Order status options (for edit form)
-const orderStatusOptions = [
-  "pending",
-  "processing",
-  "shipped", 
-  "delivered",
-  "cancelled",
-  "refunded"
+// Valid status values for updating
+const validStatusValues = ["pending", "processing", "shipped", "delivered", "cancelled", "refunded"];
+
+// Time filter options
+const timeFilters = [
+  "All Time",
+  "Today",
+  "Yesterday",
+  "Last 7 Days",
+  "Last 30 Days",
+  "Last 3 Months"
 ]
+
+// Define the backend Order interface to match our model
+interface OrderProduct {
+  productId: string;
+  title: string;
+  price: number;
+  quantity: number;
+  img?: string;
+  color?: string;
+  size?: string;
+}
+
+interface Address {
+  street?: string;
+  city: string;
+  country: string;
+  zipCode?: string;
+  phone?: string;
+}
+
+interface StatusHistoryEntry {
+  status: string;
+  timestamp: string;
+  note?: string;
+}
+
+interface BackendOrder {
+  _id: string;
+  orderNumber: string;
+  userId: {
+    _id: string;
+    name?: string;
+    email?: string;
+  };
+  products: OrderProduct[];
+  subtotal: number;
+  tax: number;
+  shippingCost: number;
+  discount: number;
+  amount: number;
+  currency: string;
+  isPaid: boolean;
+  paidAt?: string;
+  paymentMethod: string;
+  paymentDetails?: {
+    provider: string;
+    status: string;
+    captureId?: string;
+  };
+  address: Address;
+  status: string;
+  statusHistory: StatusHistoryEntry[];
+  trackingNumber?: string;
+  shippingCarrier?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Frontend Order interface for display
+interface Order {
+  id: string;
+  orderNumber: string;
+  date: string;
+  customerInitial: string;
+  customerName: string;
+  customerEmail: string;
+  customerCountry: string;
+  items: number;
+  total: number;
+  status: string;
+  payment: string;
+  isPaid: boolean;
+  rawData: BackendOrder; // Store the original data for detailed views
+}
+
+// Define API service functions
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+/**
+ * Get authentication token from localStorage
+ */
+const getAuthToken = (): string => {
+  if (typeof window !== 'undefined') {
+    try {
+      return localStorage.getItem('token') || '';
+    } catch (err) {
+      console.error("Error accessing localStorage for token:", err);
+      return '';
+    }
+  }
+  return '';
+};
+
+/**
+ * Fetch orders from API with optional filters
+ */
+const fetchOrdersFromAPI = async (filters = {}, page = 1, limit = 10) => {
+  try {
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...filters
+    }).toString();
+    
+    const response = await fetch(`${API_URL}/order?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch orders');
+    }
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update order status
+ */
+const updateOrderStatus = async (orderId: string, updateData: any) => {
+  try {
+    const response = await fetch(`${API_URL}/order/${orderId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updateData),
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to update order');
+    }
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error updating order:', error);
+    throw error;
+  }
+};
+
+/**
+ * Cancel an order
+ */
+const cancelOrder = async (orderId: string, reason: string) => {
+  try {
+    const response = await fetch(`${API_URL}/order/${orderId}/cancel`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ reason }),
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to cancel order');
+    }
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error cancelling order:', error);
+    throw error;
+  }
+};
 
 export default function OrdersManagementPage() {
-  const router = useRouter()
+  // State for orders and UI
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All Statuses");
+  const [timeFilter, setTimeFilter] = useState("All Time");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [updateOrderDialogOpen, setUpdateOrderDialogOpen] = useState(false);
+  const [cancelOrderDialogOpen, setCancelOrderDialogOpen] = useState(false);
+  const [updateStatusDialogOpen, setUpdateStatusDialogOpen] = useState(false);
+  const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [newStatus, setNewStatus] = useState("");
+  const [statusNote, setStatusNote] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [shippingCarrier, setShippingCarrier] = useState("");
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const itemsPerPage = 10;
   
-  // State variables
-  const [orders, setOrders] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("All Statuses")
-  const [timeFilter, setTimeFilter] = useState("all")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalOrders, setTotalOrders] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
-  const [selectedOrders, setSelectedOrders] = useState([])
-  
-  // Dialog states
-  const [orderToCancel, setOrderToCancel] = useState(null)
-  const [cancelReason, setCancelReason] = useState("")
-  const [isCancelling, setIsCancelling] = useState(false)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  
-  // Edit dialog states
-  const [orderToEdit, setOrderToEdit] = useState(null)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [editFormData, setEditFormData] = useState({
-    status: "",
-    statusNote: "",
-    trackingNumber: "",
-    isPaid: false
-  })
-  const [isEditSubmitting, setIsEditSubmitting] = useState(false)
-  
-  // Delete dialog states
-  const [orderToDelete, setOrderToDelete] = useState(null)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  
-  // Receipt download state
-  const [isDownloading, setIsDownloading] = useState(false)
-  const [receiptOrder, setReceiptOrder] = useState(null)
-  const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false)
-  const [isLoadingUserDetails, setIsLoadingUserDetails] = useState(false)
-  const [customerData, setCustomerData] = useState(null)
-  
-  const itemsPerPage = 8
+  // Function to convert backend order to frontend order format
+  const mapOrderData = (backendOrder: BackendOrder): Order => {
+    const customerName = backendOrder.userId?.name || "Unknown User";
+    const customerEmail = backendOrder.userId?.email || "Unknown Email";
+    
+    return {
+      id: backendOrder._id,
+      orderNumber: backendOrder.orderNumber || backendOrder._id.substring(0, 8),
+      date: new Date(backendOrder.createdAt).toLocaleString(),
+      customerInitial: customerName.charAt(0).toUpperCase(),
+      customerName: customerName,
+      customerEmail: customerEmail,
+      customerCountry: backendOrder.address?.country || "Unknown",
+      items: backendOrder.products.reduce((total, item) => total + item.quantity, 0),
+      total: backendOrder.amount,
+      status: backendOrder.status,
+      payment: backendOrder.isPaid ? "Paid" : "Unpaid",
+      isPaid: backendOrder.isPaid,
+      rawData: backendOrder
+    };
+  };
 
-  // Function to retrieve the user ID from localStorage
-  const getUserIdFromLocalStorage = () => {
-    try {
-      const storedUserId = localStorage.getItem("userId") || ""
-      return storedUserId
-    } catch (err) {
-      console.error("Error accessing localStorage:", err)
-      return ""
-    }
-  }
-  
-  // Function to retrieve the auth token
-  const getAuthToken = () => {
-    try {
-      return localStorage.getItem("token") || ""
-    } catch (err) {
-      console.error("Error accessing localStorage for token:", err)
-      return ""
-    }
-  }
-
-  // Fetch orders when component mounts or when filters/page changes
+  // Fetch orders on component mount and when filters change
   useEffect(() => {
-    fetchOrders()
-  }, [currentPage, statusFilter, timeFilter, searchQuery])
-
-  // Fetch orders from API
-  const fetchOrders = async () => {
-    setLoading(true)
-    setError("")
-    
-    try {
-      // Get auth token
-      const token = getAuthToken()
-      
-      // Construct API url with filters
-      let url = `${API_URL}/order?page=${currentPage}&limit=${itemsPerPage}`
-      
-      // Add search query if present
-      if (searchQuery.trim()) {
-        url += `&search=${encodeURIComponent(searchQuery.trim())}`
-      }
-      
-      // Add status filter if not "All Statuses"
-      if (statusFilter !== "All Statuses") {
-        url += `&status=${statusFilter}`
-      }
-
-      // Add date filters
-      if (timeFilter === "today") {
-        const today = new Date().toISOString().split('T')[0]
-        url += `&startDate=${today}&endDate=${today}T23:59:59.999Z`
-      } else if (timeFilter === "yesterday") {
-        const yesterday = new Date()
-        yesterday.setDate(yesterday.getDate() - 1)
-        const yesterdayStr = yesterday.toISOString().split('T')[0]
-        url += `&startDate=${yesterdayStr}&endDate=${yesterdayStr}T23:59:59.999Z`
-      } else if (timeFilter === "week") {
-        const weekAgo = new Date()
-        weekAgo.setDate(weekAgo.getDate() - 7)
-        url += `&startDate=${weekAgo.toISOString()}`
-      } else if (timeFilter === "month") {
-        const monthAgo = new Date()
-        monthAgo.setMonth(monthAgo.getMonth() - 1)
-        url += `&startDate=${monthAgo.toISOString()}`
-      }
-      
-      // Fetch orders with authentication
-      const response = await fetch(url, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        credentials: 'include'
-      })
-      
-      // Handle unauthorized response
-      if (response.status === 401) {
-        toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        })
-        router.push('/login?redirect=/admin/orders')
-        return
-      }
-      
-      if (!response.ok) {
-        throw new Error(`Error fetching orders: ${response.statusText}`)
-      }
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        setOrders(result.data)
-        setTotalOrders(result.total)
-        setTotalPages(Math.ceil(result.total / itemsPerPage))
-        
-        // If current page is greater than total pages, set to last page
-        if (currentPage > Math.ceil(result.total / itemsPerPage) && result.total > 0) {
-          setCurrentPage(Math.ceil(result.total / itemsPerPage))
-        }
-      } else {
-        throw new Error(result.message || 'Failed to fetch orders')
-      }
-    } catch (err:any) {
-      console.error('Error fetching orders:', err)
-      setError(err.message || 'Error fetching orders')
-      toast({
-        title: "Error",
-        description: err.message || "Could not load orders",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Update order status
-  const updateOrderStatus = async (orderId, newStatus, note) => {
-    try {
-      const token = getAuthToken()
-      
-      const response = await fetch(`${API_URL}/order/${orderId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          status: newStatus,
-          statusNote: note || `Status updated to ${newStatus}`
-        })
-      })
-      
-      if (response.status === 401) {
-        toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        })
-        router.push('/login?redirect=/admin/orders')
-        return
-      }
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        toast({
-          title: "Status Updated",
-          description: `Order status updated to ${newStatus}`,
-          variant: "default",
-        })
-        
-        // Refresh orders list
-        fetchOrders()
-        return result.data
-      } else {
-        throw new Error(result.message || 'Failed to update order status')
-      }
-    } catch (err) {
-      console.error('Error updating order status:', err)
-      toast({
-        title: "Error",
-        description: err.message || "Could not update status",
-        variant: "destructive",
-      })
-      return null
-    }
-  }
-  
-  // Fetch current user details from localStorage ID
-  const fetchCurrentUserDetails = async () => {
-    const userId = getUserIdFromLocalStorage()
-    return await fetchUserDetails(userId)
-  }
-
-  // Improved fetch user details function
-  const fetchUserDetails = async (userId) => {
-    if (!userId) return null
-    
-    try {
-      const token = getAuthToken()
-      
-      const response = await fetch(`${API_URL}/users/${userId}`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        credentials: 'include'
-      })
-      
-      if (response.status === 401) {
-        toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        })
-        router.push('/login?redirect=/admin/orders')
-        return null
-      }
-      
-      if (!response.ok) {
-        throw new Error(`Error fetching user details: ${response.statusText}`)
-      }
-      
-      const result = await response.json()
-      
-      if (result.success && result.data) {
-        return result.data
-      } else {
-        throw new Error(result.message || 'Failed to fetch user details')
-      }
-    } catch (err) {
-      console.error('Error fetching user details:', err)
-      return null
-    }
-  }
-
-  // Improved download receipt function with better user data handling
-  const downloadReceipt = async (order) => {
-    setReceiptOrder(order)
-    setIsReceiptDialogOpen(true)
-    setCustomerData(null)
-    setIsLoadingUserDetails(true)
-    
-    try {
-      // Fetch user details if userId is available
-      if (order.userId) {
-        let userId = order.userId
-        
-        // Handle case where userId might be an object with _id
-        if (typeof userId === 'object' && userId._id) {
-          userId = userId._id
-        }
-        
-        // Only fetch if userId is a string
-        if (typeof userId === 'string') {
-          console.log("Fetching user details for:", userId)
-          const userData = await fetchUserDetails(userId)
-          
-          if (userData) {
-            console.log("User data fetched successfully:", userData)
-            setCustomerData(userData)
-          } else {
-            console.log("No user data returned from API")
-          }
-        }
-      } else {
-        console.log("No userId available for this order")
-      }
-    } catch (error) {
-      console.error("Error fetching user details:", error)
-    } finally {
-      setIsLoadingUserDetails(false)
-    }
-  }
-  
-  // Generate and download receipt PDF
-  const handleDownloadReceipt = () => {
-    setIsDownloading(true)
-    
-    // Simulate API call for receipt generation and download
-    setTimeout(() => {
-      // Here you would normally call an API to generate a PDF
-      // Instead, we're simulating a download by creating a fake download link
+    const fetchOrders = async () => {
+      setLoading(true);
+      setError("");
       
       try {
-        // Create an element with download attribute (simple text download for demo)
-        const element = document.createElement('a')
-        const orderNumber = receiptOrder?.orderNumber || receiptOrder?._id || 'unknown'
-        const fileName = `receipt-order-${orderNumber}.pdf`
+        // Build filters object
+        const filters: Record<string, string> = {};
         
-        element.setAttribute('href', 'data:application/pdf;charset=utf-8,' + encodeURIComponent('This is a simulated PDF receipt file'))
-        element.setAttribute('download', fileName)
-        element.style.display = 'none'
+        // Apply status filter
+        if (statusFilter !== "All Statuses") {
+          filters.status = statusFilter.toLowerCase();
+        }
         
-        // Append to document, click and remove
-        document.body.appendChild(element)
-        element.click()
-        document.body.removeChild(element)
+        // Apply date filter based on timeFilter
+        if (timeFilter !== "All Time") {
+          const endDate = new Date();
+          let startDate = new Date();
+          
+          switch (timeFilter) {
+            case "Today":
+              startDate.setHours(0, 0, 0, 0);
+              break;
+            case "Yesterday":
+              startDate.setDate(startDate.getDate() - 1);
+              startDate.setHours(0, 0, 0, 0);
+              endDate.setDate(endDate.getDate() - 1);
+              endDate.setHours(23, 59, 59, 999);
+              break;
+            case "Last 7 Days":
+              startDate.setDate(startDate.getDate() - 7);
+              break;
+            case "Last 30 Days":
+              startDate.setDate(startDate.getDate() - 30);
+              break;
+            case "Last 3 Months":
+              startDate.setMonth(startDate.getMonth() - 3);
+              break;
+          }
+          
+          filters.startDate = startDate.toISOString();
+          if (timeFilter === "Yesterday") {
+            filters.endDate = endDate.toISOString();
+          }
+        }
         
-        toast({
-          title: "Receipt Downloaded",
-          description: `Order receipt has been downloaded as "${fileName}"`,
-          variant: "default",
-        })
+        // Check if we have a search query
+        if (searchQuery) {
+          // You can add a general search parameter if the backend supports it
+          filters.search = searchQuery;
+        }
+        
+        const result = await fetchOrdersFromAPI(filters, currentPage, itemsPerPage);
+        
+        // Map backend orders to frontend format
+        const mappedOrders = result.data.map(mapOrderData);
+        
+        setAllOrders(mappedOrders);
+        setTotalOrders(result.total);
+        setTotalPages(result.pages);
       } catch (err) {
-        console.error('Error downloading receipt:', err)
-        toast({
-          title: "Download Error",
-          description: "Could not download receipt. Please try again.",
-          variant: "destructive",
-        })
+        setError(err instanceof Error ? err.message : "Failed to fetch orders");
+        console.error("Error fetching orders:", err);
       } finally {
-        setIsDownloading(false)
-        setIsReceiptDialogOpen(false)
-        setReceiptOrder(null)
-        setCustomerData(null)
+        setLoading(false);
       }
-    }, 1500)
-  }
-
-  // Open edit dialog with order data
-  const openEditDialog = (order) => {
-    setOrderToEdit(order)
-    setEditFormData({
-      status: order.status || 'pending',
-      statusNote: '',
-      trackingNumber: order.trackingNumber || '',
-      isPaid: order.isPaid || false
-    })
-    setIsEditDialogOpen(true)
-  }
+    };
+    
+    fetchOrders();
+  }, [currentPage, statusFilter, timeFilter, searchQuery]);
   
-  // Handle edit form input changes
-  const handleEditFormChange = (field, value) => {
-    setEditFormData({
-      ...editFormData,
-      [field]: value
-    })
-  }
-  
-  // Submit order edit
-  const handleEditSubmit = async () => {
-    if (!orderToEdit) return
-    
-    setIsEditSubmitting(true)
-    
-    try {
-      const token = getAuthToken()
-      
-      const response = await fetch(`${API_URL}/order/${orderToEdit._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        credentials: 'include',
-        body: JSON.stringify(editFormData)
-      })
-      
-      if (response.status === 401) {
-        toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        })
-        router.push('/login?redirect=/admin/orders')
-        return
-      }
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        toast({
-          title: "Order Updated",
-          description: `Order ${orderToEdit.orderNumber || orderToEdit._id} has been updated`,
-          variant: "default",
-        })
-        
-        // Close dialog and refresh orders
-        setIsEditDialogOpen(false)
-        setOrderToEdit(null)
-        fetchOrders()
-      } else {
-        throw new Error(result.message || 'Failed to update order')
-      }
-    } catch (err) {
-      console.error('Error updating order:', err)
-      toast({
-        title: "Error",
-        description: err.message || "Could not update order",
-        variant: "destructive",
-      })
-    } finally {
-      setIsEditSubmitting(false)
-    }
-  }
-
-  // Cancel order
-  const handleCancelOrder = async () => {
-    if (!orderToCancel) return
-    
-    setIsCancelling(true)
-    
-    try {
-      const token = getAuthToken()
-      
-      const response = await fetch(`${API_URL}/order/${orderToCancel._id}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          reason: cancelReason || 'Cancelled by admin'
-        })
-      })
-      
-      if (response.status === 401) {
-        toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        })
-        router.push('/login?redirect=/admin/orders')
-        return
-      }
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        toast({
-          title: "Order Cancelled",
-          description: `Order ${orderToCancel.orderNumber || orderToCancel._id} has been cancelled`,
-          variant: "default",
-        })
-        
-        // Refresh orders list
-        fetchOrders()
-      } else {
-        throw new Error(result.message || 'Failed to cancel order')
-      }
-    } catch (err) {
-      console.error('Error cancelling order:', err)
-      toast({
-        title: "Error",
-        description: err.message || "Could not cancel order",
-        variant: "destructive",
-      })
-    } finally {
-      setIsCancelling(false)
-      setIsDialogOpen(false)
-      setOrderToCancel(null)
-      setCancelReason("")
-    }
-  }
-
-  // Open delete dialog
-  const openDeleteDialog = (order) => {
-    setOrderToDelete(order)
-    setIsDeleteDialogOpen(true)
-  }
-
-  // Improved delete order function
-  const handleDeleteOrder = async () => {
-    if (!orderToDelete) return
-    
-    setIsDeleting(true)
-    
-    try {
-      const token = getAuthToken()
-      
-      // First, make sure we have a proper order ID
-      const orderId = orderToDelete._id
-      
-      if (!orderId) {
-        throw new Error("Invalid order ID")
-      }
-      
-      console.log(`Attempting to delete order: ${orderId}`)
-      
-      const response = await fetch(`${API_URL}/order/${orderId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
-      })
-      
-      if (response.status === 401) {
-        toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        })
-        router.push('/login?redirect=/admin/orders')
-        return
-      }
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        toast({
-          title: "Order Deleted",
-          description: result.message || `Order has been deleted`,
-          variant: "default",
-        })
-        
-        // Close dialog and refresh orders
-        setIsDeleteDialogOpen(false)
-        setOrderToDelete(null)
-        fetchOrders()
-      } else {
-        throw new Error(result.message || 'Failed to delete order')
-      }
-    } catch (err) {
-      console.error('Error deleting order:', err)
-      toast({
-        title: "Error",
-        description: err.message || "Could not delete order",
-        variant: "destructive",
-      })
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-
-  // Get status badge color
-  const getStatusBadge = (status) => {
-    const statusLower = status?.toLowerCase() || ''
-    
-    switch (statusLower) {
-      case "delivered":
-      case "completed":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-      case "processing":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-      case "shipped":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
-      case "cancelled":
-        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-      case "refunded":
-        return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400"
-    }
-  }
-
-  // Get payment status badge color
-  const getPaymentStatusBadge = (isPaid) => {
-    if (isPaid === true) {
-      return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-    } else {
-      return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-    }
-  }
-
   // Format currency
-  const formatCurrency = (amount) => {
+  const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
-    }).format(amount || 0)
-  }
+    }).format(amount);
+  };
 
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A"
+  // Refresh orders manually
+  const refreshOrders = () => {
+    setCurrentPage(1);
+    // The useEffect will handle the actual refetching
+  };
+
+  // Handle order view details
+  const openOrderDetails = (order: Order) => {
+    setCurrentOrder(order);
+    setUpdateOrderDialogOpen(true);
+  };
+  
+  // Handle update status dialog
+  const openUpdateStatusDialog = (order: Order) => {
+    setCurrentOrder(order);
+    setNewStatus(order.status);
+    setStatusNote("");
+    if (order.rawData.trackingNumber) {
+      setTrackingNumber(order.rawData.trackingNumber);
+    } else {
+      setTrackingNumber("");
+    }
+    if (order.rawData.shippingCarrier) {
+      setShippingCarrier(order.rawData.shippingCarrier);
+    } else {
+      setShippingCarrier("");
+    }
+    setUpdateStatusDialogOpen(true);
+  };
+  
+  // Handle cancel order dialog
+  const openCancelOrderDialog = (order: Order) => {
+    setCurrentOrder(order);
+    setCancellationReason("");
+    setCancelOrderDialogOpen(true);
+  };
+
+  // Submit status update
+  const handleUpdateStatus = async () => {
+    if (!currentOrder) return;
+    
+    setUpdateLoading(true);
     
     try {
-      const date = new Date(dateString)
-      return new Intl.DateTimeFormat('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: true
-      }).format(date)
-    } catch (err) {
-      console.error("Error formatting date:", err)
-      return "Invalid Date"
-    }
-  }
-
-  // Handle select all
-  const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedOrders(orders.map(order => order._id))
-    } else {
-      setSelectedOrders([])
-    }
-  }
-
-  // Handle single select
-  const handleSelectOrder = (orderId) => {
-    if (selectedOrders.includes(orderId)) {
-      setSelectedOrders(selectedOrders.filter(id => id !== orderId))
-    } else {
-      setSelectedOrders([...selectedOrders, orderId])
-    }
-  }
-
-  // Export orders as CSV
-  const exportOrdersCSV = () => {
-    toast({
-      title: "Exporting Orders",
-      description: "Orders are being exported to CSV",
-      variant: "default",
-    })
-  }
-
-  // Improved get customer name function
-  const getCustomerName = () => {
-    if (isLoadingUserDetails) {
-      return (
-        <span className="flex items-center">
-          Loading customer data
-          <Loader2 className="h-3 w-3 ml-2 animate-spin" />
-        </span>
-      )
-    }
-    
-    // If we have customer data from our API call, use it
-    if (customerData) {
-      // Check if we have a name directly
-      if (customerData.name) {
-        return customerData.name
+      const updateData: any = {
+        status: newStatus
+      };
+      
+      // Add status note if provided
+      if (statusNote) {
+        updateData.statusNote = statusNote;
       }
       
-      // Check if we have firstName/lastName
-      if (customerData.firstName || customerData.lastName) {
-        return `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim()
-      }
-    }
-    
-    // Fall back to order data if customer data is not available
-    if (receiptOrder) {
-      // Check if we have user information in the order
-      if (receiptOrder.address) {
-        const addressName = `${receiptOrder.address.firstName || ''} ${receiptOrder.address.lastName || ''}`.trim()
-        if (addressName) {
-          return addressName
+      // Add tracking details if this is a shipped status update
+      if (newStatus === "shipped") {
+        if (trackingNumber) {
+          updateData.trackingNumber = trackingNumber;
+        }
+        if (shippingCarrier) {
+          updateData.shippingCarrier = shippingCarrier;
         }
       }
       
-      // If userId is an object with name property
-      if (receiptOrder.userId && typeof receiptOrder.userId === 'object' && receiptOrder.userId.name) {
-        return receiptOrder.userId.name
-      }
+      const result = await updateOrderStatus(currentOrder.id, updateData);
       
-      // If userId is a string, show partial
-      if (receiptOrder.userId && typeof receiptOrder.userId === 'string') {
-        return `User ID: ${receiptOrder.userId.substring(0, 8)}`
-      }
+      // Update the order in the local state
+      const updatedOrder = mapOrderData(result.data);
+      setAllOrders(prev => 
+        prev.map(order => order.id === updatedOrder.id ? updatedOrder : order)
+      );
+      
+      // Show success message
+      toast({
+        title: "Order Updated",
+        description: `Order ${currentOrder.orderNumber} status changed to ${newStatus}`,
+        variant: "default",
+      });
+      
+      // Close dialog
+      setUpdateStatusDialogOpen(false);
+    } catch (err) {
+      toast({
+        title: "Update Failed",
+        description: err instanceof Error ? err.message : "Failed to update order status",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+  
+  // Submit order cancellation
+  const handleCancelOrder = async () => {
+    if (!currentOrder) return;
+    
+    if (!cancellationReason.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please provide a reason for cancellation",
+        variant: "destructive",
+      });
+      return;
     }
     
-    return "Unknown Customer"
-  }
+    setUpdateLoading(true);
+    
+    try {
+      await cancelOrder(currentOrder.id, cancellationReason);
+      
+      // Refresh the orders to get updated data
+      refreshOrders();
+      
+      // Show success message
+      toast({
+        title: "Order Cancelled",
+        description: `Order ${currentOrder.orderNumber} has been cancelled successfully`,
+        variant: "default",
+      });
+      
+      // Close dialog
+      setCancelOrderDialogOpen(false);
+    } catch (err) {
+      toast({
+        title: "Cancellation Failed",
+        description: err instanceof Error ? err.message : "Failed to cancel order",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+
+  // Handle select all orders
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedOrders(allOrders.map(order => order.id));
+    } else {
+      setSelectedOrders([]);
+    }
+  };
+
+  // Handle single order selection
+  const handleSelectOrder = (orderId: string) => {
+    if (selectedOrders.includes(orderId)) {
+      setSelectedOrders(selectedOrders.filter(id => id !== orderId));
+    } else {
+      setSelectedOrders([...selectedOrders, orderId]);
+    }
+  };
+
+  // Handle search functionality
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Get status badge color based on status
+  const getStatusBadge = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "pending":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+      case "processing":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+      case "shipped":
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400";
+      case "delivered":
+        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+      case "cancelled":
+        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+      case "refunded":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+    }
+  };
 
   return (
     <div className="space-y-6">
+      <Toaster />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Orders</h1>
           <p className="text-muted-foreground mt-2">Manage and process customer orders</p>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={fetchOrders}
-          >
-            <ArrowUpDown className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={exportOrdersCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
-        </div>
+        <Button variant="outline" onClick={refreshOrders} disabled={loading}>
+          <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
-      <div className="flex gap-4 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by order number, customer or status..."
-            className="pl-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-
-        <div className="flex gap-4">
-          <Select 
-            value={statusFilter} 
-            onValueChange={(value) => setStatusFilter(value)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by status" />
+      <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between">
+        <div className="flex flex-col md:flex-row gap-4 md:items-center">
+          <form onSubmit={handleSearch} className="relative w-full md:w-80">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by order number or customer..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <button type="submit" className="sr-only">Search</button>
+          </form>
+          
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full md:w-40">
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              {statusOptions.map((status) => (
+              {orderStatuses.map((status) => (
                 <SelectItem key={status} value={status}>
-                  {status}
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           
-          <Select 
-            value={timeFilter} 
-            onValueChange={(value) => setTimeFilter(value)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Time period" />
+          <Select value={timeFilter} onValueChange={setTimeFilter}>
+            <SelectTrigger className="w-full md:w-40">
+              <SelectValue placeholder="Time" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="yesterday">Yesterday</SelectItem>
-              <SelectItem value="week">Last 7 Days</SelectItem>
-              <SelectItem value="month">Last 30 Days</SelectItem>
+              {timeFilters.map((time) => (
+                <SelectItem key={time} value={time}>
+                  {time}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -842,26 +607,27 @@ export default function OrdersManagementPage() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex justify-center items-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="p-6 flex justify-center items-center min-h-[200px]">
+              <div className="flex flex-col items-center">
+                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <p className="mt-4">Loading orders...</p>
+              </div>
             </div>
           ) : error ? (
-            <div className="flex justify-center items-center p-8 text-red-500">
-              <AlertCircle className="h-6 w-6 mr-2" />
+            <div className="p-6 text-center text-red-500">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
               <p>{error}</p>
-            </div>
-          ) : orders.length === 0 ? (
-            <div className="flex flex-col justify-center items-center p-8 text-muted-foreground">
-              <Package className="h-10 w-10 mb-4" />
-              <p>No orders found</p>
               <Button 
                 variant="outline" 
-                size="sm" 
-                className="mt-4" 
-                onClick={fetchOrders}
+                className="mt-4"
+                onClick={refreshOrders}
               >
-                Refresh
+                Try Again
               </Button>
+            </div>
+          ) : allOrders.length === 0 ? (
+            <div className="p-6 text-center">
+              <p className="text-muted-foreground">No orders found</p>
             </div>
           ) : (
             <div className="relative overflow-x-auto">
@@ -875,12 +641,12 @@ export default function OrdersManagementPage() {
                           type="checkbox"
                           className="w-4 h-4 rounded border-gray-300"
                           onChange={handleSelectAll}
-                          checked={selectedOrders.length === orders.length && orders.length > 0}
+                          checked={allOrders.length > 0 && selectedOrders.length === allOrders.length}
                         />
                         <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
                       </div>
                     </th>
-                    <th scope="col" className="px-4 py-3">Order</th>
+                    <th scope="col" className="px-4 py-3">Order #</th>
                     <th scope="col" className="px-4 py-3">Date</th>
                     <th scope="col" className="px-4 py-3">Customer</th>
                     <th scope="col" className="px-4 py-3">Items</th>
@@ -891,9 +657,9 @@ export default function OrdersManagementPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((order) => (
+                  {allOrders.map((order) => (
                     <tr 
-                      key={order._id} 
+                      key={order.id} 
                       className="border-b hover:bg-muted/50"
                     >
                       <td className="p-4">
@@ -901,97 +667,68 @@ export default function OrdersManagementPage() {
                           <input
                             type="checkbox"
                             className="w-4 h-4 rounded border-gray-300"
-                            checked={selectedOrders.includes(order._id)}
-                            onChange={() => handleSelectOrder(order._id)}
+                            checked={selectedOrders.includes(order.id)}
+                            onChange={() => handleSelectOrder(order.id)}
                           />
                           <label className="sr-only">checkbox</label>
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-medium">{order.orderNumber || order._id}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {formatDate(order.createdAt)}
-                      </td>
-                      <td className="flex items-center gap-2 px-4 py-3">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                          <div className="text-sm font-semibold">
-                            {order.userId?.name?.substring(0, 1) || "U"}
+                      <td className="px-4 py-3 font-medium">{order.orderNumber}</td>
+                      <td className="px-4 py-3">{order.date}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-start gap-2">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                            {order.customerInitial}
+                          </div>
+                          <div>
+                            <div className="font-medium">{order.customerName}</div>
+                            <div className="text-xs text-muted-foreground">{order.customerEmail}</div>
+                            <div className="text-xs text-muted-foreground">{order.customerCountry}</div>
                           </div>
                         </div>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{order.userId?.name || "User " + order.userId?.substring(0, 8)}</span>
-                          <span className="text-xs text-muted-foreground">{order.address?.country || "N/A"}</span>
-                        </div>
                       </td>
-                      <td className="px-4 py-3 text-center">{order.products?.length || 0}</td>
-                      <td className="px-4 py-3 font-medium">{formatCurrency(order.amount)}</td>
+                      <td className="px-4 py-3">{order.items}</td>
+                      <td className="px-4 py-3 font-medium">{formatCurrency(order.total)}</td>
                       <td className="px-4 py-3">
                         <Badge className={getStatusBadge(order.status)}>
-                          {order.status}
+                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                         </Badge>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge className={getPaymentStatusBadge(order.isPaid)}>
-                          {order.isPaid ? "Paid" : "Pending"}
-                        </Badge>
+                        <div className="flex items-center">
+                          <div className={`w-2 h-2 rounded-full mr-2 ${order.isPaid ? "bg-green-500" : "bg-red-500"}`}></div>
+                          {order.payment}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end">
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => downloadReceipt(order)}
-                            title="Download Receipt"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => openEditDialog(order)}>
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Edit Order
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => downloadReceipt(order)}>
-                                <Download className="h-4 w-4 mr-2" />
-                                Download Receipt
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => updateOrderStatus(order._id, "processing", "Order marked as processing by admin")}>
-                                <Package className="h-4 w-4 mr-2" />
-                                Process Order
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openEditDialog(order)}>
-                                <Clock className="h-4 w-4 mr-2" />
-                                Update Status
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                className="text-red-600"
-                                onClick={() => {
-                                  setOrderToCancel(order)
-                                  setIsDialogOpen(true)
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openOrderDetails(order)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => openUpdateStatusDialog(order)}>
+                              <Truck className="h-4 w-4 mr-2" />
+                              Update Status
+                            </DropdownMenuItem>
+                            {order.status !== "cancelled" && order.status !== "refunded" && (
+                              <DropdownMenuItem onClick={() => openCancelOrderDialog(order)}>
+                                <span className="h-4 w-4 mr-2">❌</span>
                                 Cancel Order
                               </DropdownMenuItem>
-                              {["cancelled", "pending"].includes(order.status?.toLowerCase()) && (
-                                <DropdownMenuItem 
-                                  className="text-red-600"
-                                  onClick={() => openDeleteDialog(order)}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete Order
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                            )}
+                            <DropdownMenuItem>
+                              <Printer className="h-4 w-4 mr-2" />
+                              Print Invoice
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}
@@ -1003,7 +740,7 @@ export default function OrdersManagementPage() {
       </Card>
 
       {/* Pagination */}
-      {!loading && !error && orders.length > 0 && (
+      {!loading && !error && allOrders.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, totalOrders)} of {totalOrders} orders
@@ -1012,21 +749,25 @@ export default function OrdersManagementPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              onClick={() => setCurrentPage(currentPage - 1)}
               disabled={currentPage === 1}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <div className="flex items-center space-x-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                // Show 5 pages max with current page in the middle when possible
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                // Show first page, last page, and pages around current page
                 let pageToShow;
                 if (totalPages <= 5) {
                   pageToShow = i + 1;
+                } else if (currentPage <= 3) {
+                  pageToShow = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageToShow = totalPages - 4 + i;
                 } else {
-                  const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
-                  pageToShow = start + i;
+                  pageToShow = currentPage - 2 + i;
                 }
+                
                 return (
                   <Button
                     key={pageToShow}
@@ -1043,7 +784,7 @@ export default function OrdersManagementPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              onClick={() => setCurrentPage(currentPage + 1)}
               disabled={currentPage === totalPages || totalPages === 0}
             >
               <ChevronRight className="h-4 w-4" />
@@ -1052,369 +793,381 @@ export default function OrdersManagementPage() {
         </div>
       )}
 
-      {/* Cancel Order Dialog */}
-      <Dialog 
-        open={isDialogOpen} 
-        onOpenChange={(open) => {
-          setIsDialogOpen(open)
-          if (!open) {
-            setOrderToCancel(null)
-            setCancelReason("")
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel Order</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to cancel order {orderToCancel?.orderNumber || orderToCancel?._id}?
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <label htmlFor="reason" className="text-sm font-medium">
-                Reason for cancellation
-              </label>
-              <Input
-                id="reason"
-                placeholder="Enter reason for cancellation"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-              />
+      {/* Order Details Dialog */}
+      {currentOrder && (
+        <Dialog open={updateOrderDialogOpen} onOpenChange={setUpdateOrderDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Order Details</DialogTitle>
+              <DialogDescription>
+                Order #{currentOrder.orderNumber}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="space-y-6">
+                {/* Order Status and Date */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Order Date</p>
+                    <p className="font-medium">{currentOrder.date}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <Badge className={getStatusBadge(currentOrder.status)}>
+                      {currentOrder.status.charAt(0).toUpperCase() + currentOrder.status.slice(1)}
+                    </Badge>
+                  </div>
+                </div>
+                
+                {/* Customer */}
+                <div>
+                  <p className="text-sm font-medium mb-2">Customer</p>
+                  <div className="flex items-start gap-2 p-3 border rounded-md">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium">
+                      {currentOrder.customerInitial}
+                    </div>
+                    <div>
+                      <p className="font-medium">{currentOrder.customerName}</p>
+                      <p className="text-sm">{currentOrder.customerEmail}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {currentOrder.rawData.address.street && `${currentOrder.rawData.address.street}, `}
+                        {currentOrder.rawData.address.city}, {currentOrder.rawData.address.country} 
+                        {currentOrder.rawData.address.zipCode && ` ${currentOrder.rawData.address.zipCode}`}
+                      </p>
+                      {currentOrder.rawData.address.phone && (
+                        <p className="text-sm text-muted-foreground">{currentOrder.rawData.address.phone}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Products */}
+                <div>
+                  <p className="text-sm font-medium mb-2">Products</p>
+                  <div className="border rounded-md overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 text-xs uppercase">
+                        <tr>
+                          <th className="px-4 py-2 text-left">Product</th>
+                          <th className="px-4 py-2 text-right">Price</th>
+                          <th className="px-4 py-2 text-right">Qty</th>
+                          <th className="px-4 py-2 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentOrder.rawData.products.map((product, index) => (
+                          <tr key={index} className="border-t">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                {product.img && (
+                                  <img 
+                                    src={product.img} 
+                                    alt={product.title} 
+                                    className="w-10 h-10 object-cover rounded-md"
+                                  />
+                                )}
+                                <div>
+                                  <div className="font-medium">{product.title}</div>
+                                  {(product.color || product.size) && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {product.color && `Color: ${product.color}`}
+                                      {product.color && product.size && ' / '}
+                                      {product.size && `Size: ${product.size}`}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right">{formatCurrency(product.price)}</td>
+                            <td className="px-4 py-3 text-right">{product.quantity}</td>
+                            <td className="px-4 py-3 text-right font-medium">{formatCurrency(product.price * product.quantity)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                {/* Order Summary */}
+                <div>
+                  <p className="text-sm font-medium mb-2">Order Summary</p>
+                  <div className="border rounded-md p-3">
+                    <div className="space-y-1 mb-3">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Subtotal:</span>
+                        <span>{formatCurrency(currentOrder.rawData.subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Shipping:</span>
+                        <span>{formatCurrency(currentOrder.rawData.shippingCost)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Tax:</span>
+                        <span>{formatCurrency(currentOrder.rawData.tax)}</span>
+                      </div>
+                      {currentOrder.rawData.discount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Discount:</span>
+                          <span className="text-green-600">-{formatCurrency(currentOrder.rawData.discount)}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="border-t pt-2 flex justify-between font-medium text-lg">
+                      <span>Total:</span>
+                      <span>{formatCurrency(currentOrder.rawData.amount)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Payment & Shipping */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium mb-2">Payment</p>
+                    <div className="border rounded-md p-3">
+                      <div className="flex items-center mb-1">
+                        <div className={`w-2 h-2 rounded-full mr-2 ${currentOrder.isPaid ? "bg-green-500" : "bg-red-500"}`}></div>
+                        <span className="font-medium">{currentOrder.isPaid ? "Paid" : "Unpaid"}</span>
+                      </div>
+                      {currentOrder.isPaid && currentOrder.rawData.paidAt && (
+                        <p className="text-sm text-muted-foreground">
+                          Paid on {new Date(currentOrder.rawData.paidAt).toLocaleString()}
+                        </p>
+                      )}
+                      <p className="text-sm mt-1">
+                        Method: {currentOrder.rawData.paymentMethod}
+                      </p>
+                      {currentOrder.rawData.paymentDetails && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Provider: {currentOrder.rawData.paymentDetails.provider}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium mb-2">Shipping</p>
+                    <div className="border rounded-md p-3">
+                      {currentOrder.rawData.trackingNumber ? (
+                        <>
+                          <p className="font-medium">Tracking: {currentOrder.rawData.trackingNumber}</p>
+                          {currentOrder.rawData.shippingCarrier && (
+                            <p className="text-sm mt-1">Carrier: {currentOrder.rawData.shippingCarrier}</p>
+                          )}
+                        </>
+                      ) : currentOrder.status === "shipped" ? (
+                        <p className="text-yellow-600">Shipping information pending</p>
+                      ) : (
+                        <p className="text-muted-foreground">No tracking information</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Status History */}
+                {currentOrder.rawData.statusHistory && currentOrder.rawData.statusHistory.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">Status History</p>
+                    <div className="border rounded-md p-3">
+                      <div className="space-y-3">
+                        {currentOrder.rawData.statusHistory.map((entry, index) => (
+                          <div key={index} className="flex items-start gap-2">
+                            <div className={`w-2 h-2 rounded-full mt-2 ${getStatusBadge(entry.status)}`}></div>
+                            <div>
+                              <div className="font-medium">
+                                {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(entry.timestamp).toLocaleString()}
+                              </div>
+                              {entry.note && (
+                                <div className="text-sm mt-1">{entry.note}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Notes */}
+                {currentOrder.rawData.notes && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">Notes</p>
+                    <div className="border rounded-md p-3">
+                      <p className="text-sm">{currentOrder.rawData.notes}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsDialogOpen(false)
-                setOrderToCancel(null)
-                setCancelReason("")
-              }}
-              disabled={isCancelling}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleCancelOrder}
-              disabled={isCancelling}
-            >
-              {isCancelling ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Cancelling...
-                </>
-              ) : (
-                "Cancel Order"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter className="flex justify-between">
+              <div className="flex gap-2">
+                {currentOrder.status !== "cancelled" && currentOrder.status !== "refunded" && (
+                  <Button variant="destructive" onClick={() => {
+                    setUpdateOrderDialogOpen(false);
+                    openCancelOrderDialog(currentOrder);
+                  }}>
+                    Cancel Order
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setUpdateOrderDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  setUpdateOrderDialogOpen(false);
+                  openUpdateStatusDialog(currentOrder);
+                }}>
+                  Update Status
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      {/* Edit Order Dialog */}
-      <Dialog
-        open={isEditDialogOpen}
-        onOpenChange={(open) => {
-          setIsEditDialogOpen(open)
-          if (!open) {
-            setOrderToEdit(null)
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>Edit Order</span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 w-8 p-0"
-                onClick={() => setIsEditDialogOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogTitle>
-            <DialogDescription>
-              Update order {orderToEdit?.orderNumber || orderToEdit?._id} details
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status" className="text-right">
-                Status
-              </Label>
-              <div className="col-span-3">
-                <Select
-                  value={editFormData.status}
-                  onValueChange={(value) => handleEditFormChange('status', value)}
-                >
-                  <SelectTrigger>
+      {/* Update Status Dialog */}
+      {currentOrder && (
+        <Dialog open={updateStatusDialogOpen} onOpenChange={setUpdateStatusDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Update Order Status</DialogTitle>
+              <DialogDescription>
+                Change status for order #{currentOrder.orderNumber}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="status">Order Status</Label>
+                <Select value={newStatus} onValueChange={setNewStatus}>
+                  <SelectTrigger id="status">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    {orderStatusOptions.map((status) => (
+                    {validStatusValues.map((status) => (
                       <SelectItem key={status} value={status}>
-                        {status}
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="statusNote" className="text-right">
-                Status Note
-              </Label>
-              <div className="col-span-3">
-                <Textarea
+              
+              <div className="space-y-2">
+                <Label htmlFor="statusNote">Status Note (Optional)</Label>
+                <Textarea 
                   id="statusNote"
                   placeholder="Add a note about this status change"
-                  value={editFormData.statusNote}
-                  onChange={(e) => handleEditFormChange('statusNote', e.target.value)}
-                  className="resize-none"
+                  value={statusNote}
+                  onChange={(e) => setStatusNote(e.target.value)}
                 />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="trackingNumber" className="text-right">
-                Tracking #
-              </Label>
-              <div className="col-span-3">
-                <Input
-                  id="trackingNumber"
-                  placeholder="Enter tracking number"
-                  value={editFormData.trackingNumber}
-                  onChange={(e) => handleEditFormChange('trackingNumber', e.target.value)}
-                />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="isPaid" className="text-right">
-                Payment Status
-              </Label>
-              <div className="col-span-3">
-                <Select
-                  value={editFormData.isPaid.toString()}
-                  onValueChange={(value) => handleEditFormChange('isPaid', value === 'true')}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Payment status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Paid</SelectItem>
-                    <SelectItem value="false">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsEditDialogOpen(false)}
-              disabled={isEditSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleEditSubmit}
-              disabled={isEditSubmitting}
-            >
-              {isEditSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Order Dialog */}
-      <Dialog
-        open={isDeleteDialogOpen}
-        onOpenChange={(open) => {
-          setIsDeleteDialogOpen(open)
-          if (!open) {
-            setOrderToDelete(null)
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete Order</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to permanently delete order {orderToDelete?.orderNumber || orderToDelete?._id}?
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={handleDeleteOrder}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete Order"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Receipt Download Dialog */}
-      <Dialog
-        open={isReceiptDialogOpen}
-        onOpenChange={(open) => {
-          setIsReceiptDialogOpen(open)
-          if (!open) {
-            setReceiptOrder(null)
-            setCustomerData(null)
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[550px]">
-          <DialogHeader>
-            <DialogTitle>Download Receipt</DialogTitle>
-            <DialogDescription>
-              Preview and download receipt for order {receiptOrder?.orderNumber || receiptOrder?._id}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {receiptOrder && (
-            <div className="py-4 border rounded-md p-4 bg-white">
-              <div className="flex justify-between mb-4">
-                <div>
-                  <h3 className="font-bold text-lg">Order Receipt</h3>
-                  <p className="text-sm text-muted-foreground">Order #: {receiptOrder.orderNumber || receiptOrder._id}</p>
-                  <p className="text-sm text-muted-foreground">Date: {formatDate(receiptOrder.createdAt)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium">Your Store Name</p>
-                  <p className="text-sm text-muted-foreground">123 Main Street</p>
-                  <p className="text-sm text-muted-foreground">City, State ZIP</p>
-                </div>
               </div>
               
-              <div className="border-t border-b py-2 mb-2">
-                <h4 className="font-medium mb-1">Customer Information</h4>
-                <p className="text-sm">Name: {getCustomerName()}</p>
-                {receiptOrder.address && (
+              {newStatus === "shipped" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="trackingNumber">Tracking Number</Label>
+                    <Input 
+                      id="trackingNumber"
+                      placeholder="Enter tracking number"
+                      value={trackingNumber}
+                      onChange={(e) => setTrackingNumber(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="shippingCarrier">Shipping Carrier</Label>
+                    <Input 
+                      id="shippingCarrier"
+                      placeholder="Enter shipping carrier (e.g., UPS, FedEx)"
+                      value={shippingCarrier}
+                      onChange={(e) => setShippingCarrier(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setUpdateStatusDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateStatus} disabled={updateLoading}>
+                {updateLoading ? (
                   <>
-                    <p className="text-sm">Address: {receiptOrder.address.street || ""}</p>
-                    <p className="text-sm">{receiptOrder.address.city || ""}, {receiptOrder.address.state || ""} {receiptOrder.address.zip || ""}</p>
-                    <p className="text-sm">Country: {receiptOrder.address.country || ""}</p>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Update Status
                   </>
                 )}
-                {customerData && customerData.email && (
-                  <p className="text-sm">Email: {customerData.email}</p>
-                )}
-                {customerData && customerData.phone && (
-                  <p className="text-sm">Phone: {customerData.phone}</p>
-                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Cancel Order Dialog */}
+      {currentOrder && (
+        <Dialog open={cancelOrderDialogOpen} onOpenChange={setCancelOrderDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Cancel Order</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to cancel order #{currentOrder.orderNumber}?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-yellow-800 text-sm">
+                <p className="font-medium">Important Note:</p>
+                <p>Cancelling this order cannot be undone. If the order is already paid, a refund process will be initiated.</p>
               </div>
               
-              <div className="mb-4">
-                <h4 className="font-medium mb-2">Order Items</h4>
-                <table className="w-full text-sm">
-                  <thead className="border-b">
-                    <tr>
-                      <th className="text-left pb-1">Item</th>
-                      <th className="text-center pb-1">Qty</th>
-                      <th className="text-right pb-1">Price</th>
-                      <th className="text-right pb-1">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {receiptOrder.products?.map((product, index) => (
-                      <tr key={index} className="border-b border-dashed">
-                        <td className="py-1">{product.name || `Product #${index + 1}`}</td>
-                        <td className="py-1 text-center">{product.quantity || 1}</td>
-                        <td className="py-1 text-right">{formatCurrency(product.price || 0)}</td>
-                        <td className="py-1 text-right">{formatCurrency((product.price || 0) * (product.quantity || 1))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-2">
+                <Label htmlFor="cancellationReason" className="font-medium">
+                  Cancellation Reason <span className="text-red-500">*</span>
+                </Label>
+                <Textarea 
+                  id="cancellationReason"
+                  placeholder="Please provide a reason for cancellation"
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                  required
+                />
               </div>
               
-              <div className="text-right mb-4">
-                <div className="flex justify-between border-b pb-1">
-                  <span>Subtotal:</span>
-                  <span>{formatCurrency(receiptOrder.amount || 0)}</span>
+              {currentOrder.isPaid && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-blue-800 text-sm">
+                  <p className="font-medium">Payment Refund:</p>
+                  <p>This order has been paid. Cancelling will initiate a refund process through {currentOrder.rawData.paymentMethod}.</p>
                 </div>
-                <div className="flex justify-between border-b pb-1">
-                  <span>Shipping:</span>
-                  <span>{formatCurrency(receiptOrder.shippingFee || 0)}</span>
-                </div>
-                <div className="flex justify-between border-b pb-1">
-                  <span>Tax:</span>
-                  <span>{formatCurrency(receiptOrder.taxAmount || 0)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-lg mt-2">
-                  <span>Total:</span>
-                  <span>{formatCurrency((receiptOrder.amount || 0) + (receiptOrder.shippingFee || 0) + (receiptOrder.taxAmount || 0))}</span>
-                </div>
-              </div>
-              
-              <div className="text-center text-sm text-muted-foreground mt-6">
-                <p>Thank you for your business!</p>
-                <p>For any questions, contact support@yourstore.com</p>
-              </div>
-            </div>
-          )}
-          
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsReceiptDialogOpen(false)}
-              disabled={isDownloading}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleDownloadReceipt}
-              disabled={isDownloading}
-            >
-              {isDownloading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Downloading...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
-                </>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCancelOrderDialogOpen(false)}>
+                Keep Order
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleCancelOrder}
+                disabled={updateLoading || !cancellationReason.trim()}
+              >
+                {updateLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Processing...
+                  </>
+                ) : (
+                  "Cancel Order"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
