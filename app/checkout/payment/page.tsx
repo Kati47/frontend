@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Lock, Loader2, AlertCircle, CheckCircle, RefreshCw } from "lucide-react"
@@ -10,8 +10,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1"
 
 // List of countries - fix for the PayPal country code issue
 const countries = [
@@ -53,21 +51,21 @@ interface PaymentComponentProps {
 }
 
 export default function PaymentPage() {
-  // Fix: Get searchParams using the hook
   const searchParams = useSearchParams();
-  
-  // Fix: Read URL parameters explicitly 
-  const urlOrderId = searchParams?.get('orderId') || undefined;
-  
-  // Fix: Parse the total properly, ensuring it's a number
-  const urlTotalStr = searchParams?.get('total');
-  const urlTotal = urlTotalStr ? parseFloat(urlTotalStr) : undefined;
-  
-  console.log("PaymentPage explicit URL params:", { 
-    urlOrderId, 
-    urlTotal,
-    rawTotal: urlTotalStr 
-  });
+  // Function to retrieve the user ID from localStorage
+  const getUserIdFromLocalStorage = () => {
+    try {
+      const storedUserId = localStorage.getItem("userId") || ""
+      return storedUserId
+    } catch (err) {
+      console.error("Error accessing localStorage:", err)
+      return ""
+    }
+  }
+  // Mock parameters instead of real API data
+  const urlOrderId = searchParams?.get('orderId') || "ORD-12345-DEMO";
+  const urlTotalStr = searchParams?.get('total') || "209.96";
+  const urlTotal = urlTotalStr ? parseFloat(urlTotalStr) : 209.96;
   
   return (
     <div className="container py-8">
@@ -83,568 +81,73 @@ export default function PaymentPage() {
   );
 }
 
-function PaymentComponent({ total: initialTotal, orderId: propOrderId, onPaymentComplete }: PaymentComponentProps) {
-  // Log initial props for debugging
-  console.log("🔄 PaymentComponent received props:", { 
-    initialTotal, 
-    propOrderId,
-    hasTotal: initialTotal !== undefined,
-    hasOrderId: propOrderId !== undefined
-  });
-  
+function PaymentComponent({ total: initialTotal = 209.96, orderId: propOrderId = "ORD-12345-DEMO" }: PaymentComponentProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isCapturingPayment, setIsCapturingPayment] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Backup: Read URL parameters directly in the component as fallback
-  const urlOrderId = searchParams?.get('orderId');
-  const urlTotalStr = searchParams?.get('total');
-  const urlTotal = urlTotalStr ? parseFloat(urlTotalStr) : undefined;
-  
-  // Initialize with props OR URL parameters as fallback
-  const [orderId, setOrderId] = useState<string | undefined>(
-    propOrderId || urlOrderId || undefined
-  );
-  const [total, setTotal] = useState<number | undefined>(
-    initialTotal !== undefined ? initialTotal : urlTotal
-  );
-  
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
-  const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
-  const [orderDetails, setOrderDetails] = useState<any>(null);
   const [countryCode, setCountryCode] = useState("US");
   
-  // Reference to track initialization
-  const initialized = useRef(false);
-  const orderFetched = useRef(false);
-
-  // Initialization - read first from URL parameters, then localStorage
-  useEffect(() => {
-    if (initialized.current) return;
-    
-    console.log("🔄 Initializing PaymentComponent");
-    console.log("URL parameters available:", { urlOrderId, urlTotal });
-    
-    const init = async () => {
-      try {
-        // First use URL parameters (already set in state)
-        let hasUpdates = false;
-        
-        // Fallback to localStorage if needed
-        if (!orderId) {
-          const storedOrderId = localStorage.getItem('currentOrderId');
-          if (storedOrderId) {
-            console.log(`📋 Using order ID from localStorage: ${storedOrderId}`);
-            setOrderId(storedOrderId);
-            hasUpdates = true;
-          }
-        }
-        
-        if (total === undefined) {
-          const storedTotal = localStorage.getItem('currentOrderTotal');
-          if (storedTotal && !isNaN(parseFloat(storedTotal))) {
-            const parsedTotal = parseFloat(storedTotal);
-            console.log(`💰 Using total from localStorage: ${parsedTotal}`);
-            setTotal(parsedTotal);
-            hasUpdates = true;
-          }
-        }
-        
-        // If we had either orderId or total from the start, save them to localStorage
-        if (orderId) {
-          localStorage.setItem('currentOrderId', orderId);
-        }
-        
-        if (total !== undefined) {
-          localStorage.setItem('currentOrderTotal', total.toString());
-        }
-        
-        initialized.current = true;
-        
-        // If we have orderId but no updates needed, still set isLoading to false
-        if (orderId && !hasUpdates && orderDetails) {
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error("Error during initialization:", error);
-        setIsLoading(false);
-      }
-    };
-    
-    init();
-  }, [urlOrderId, urlTotal, orderId, total, orderDetails]);
-
-  // Fetch order details when orderId becomes available
-  useEffect(() => {
-    const fetchOrder = async () => {
-      // Only fetch if we have an orderId and haven't fetched this order yet
-      if (!orderId || orderFetched.current) {
-        if (!orderId) {
-          console.log("No order ID available to fetch details");
-        } else {
-          console.log("Order already fetched, skipping fetch");
-        }
-        setIsLoading(false);
-        return;
-      }
-      
-      console.log(`🔄 Fetching details for order: ${orderId}`);
-      
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error("Authentication required");
-        }
-        
-        const response = await fetch(`${baseUrl}/order/${orderId}`, {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
-        
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error(`Order ${orderId} not found`);
-          }
-          throw new Error("Failed to fetch order details");
-        }
-        
-        const orderData = await response.json();
-        console.log("✅ Order details fetched:", orderData);
-        
-        setOrderDetails(orderData);
-        
-        // Update total if not already set
-        if (orderData.amount && (total === undefined)) {
-          console.log(`Setting total from order data: ${orderData.amount}`);
-          setTotal(orderData.amount);
-          localStorage.setItem('currentOrderTotal', orderData.amount.toString());
-        }
-        
-        // Check payment status
-        if (orderData.isPaid) {
-          console.log("⚠️ This order is already paid");
-          setPaymentStatus("COMPLETED");
-        } else if (orderData.paymentDetails?.status) {
-          console.log(`🔄 Payment status from order: ${orderData.paymentDetails.status}`);
-          setPaymentStatus(orderData.paymentDetails.status);
-        }
-        
-        // Check if PayPal order ID exists
-        if (orderData.paymentDetails?.paypalOrderId) {
-          console.log(`Found PayPal order ID: ${orderData.paymentDetails.paypalOrderId}`);
-          setPaypalOrderId(orderData.paymentDetails.paypalOrderId);
-        }
-        
-        // Update country code if available
-        if (orderData.address?.country) {
-          const countryCode = convertToISOCountryCode(orderData.address.country);
-          console.log(`Setting country code from order: ${countryCode}`);
-          setCountryCode(countryCode);
-        }
-        
-        orderFetched.current = true;
-      } catch (error: any) {
-        console.error("❌ Error fetching order details:", error);
-        setError(error.message || "Failed to load order details");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchOrder();
-  }, [orderId, total]);
-
-  // Capture payment if PayPal return params are present
-  useEffect(() => {
-    if (!searchParams) return;
-    
-    const token = searchParams.get('token'); // PayPal order ID/token
-    const payerId = searchParams.get('PayerID'); // PayPal payer ID
-    const success = searchParams.get('success');
-    
-    if ((success === 'true' || payerId) && token && orderId && !isCapturingPayment) {
-      console.log(`Capturing payment for PayPal token: ${token}, orderId: ${orderId}`);
-      capturePaypalPayment(token, orderId);
-    }
-  }, [searchParams, orderId, isCapturingPayment]);
-  
-  // Fallback to find order if no order ID is provided
-  useEffect(() => {
-    const findOrder = async () => {
-      // Only run if we don't have an order ID and we're not loading and not already fetched
-      if (orderId || isLoading || !initialized.current) {
-        return;
-      }
-
-      console.log("🔍 No order ID found, attempting to find latest pending order");
-      setIsLoading(true);
-      
-      try {
-        const userId = localStorage.getItem('userId');
-        const token = localStorage.getItem('token');
-        
-        if (!userId || !token) {
-          throw new Error("Authentication required");
-        }
-        
-        // Fetch latest pending order for this user
-        console.log(`🔄 Fetching orders for user: ${userId}`);
-        const response = await fetch(`${baseUrl}/order/find/${userId}`, {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error("Failed to fetch orders");
-        }
-        
-        const orders = await response.json();
-        console.log(`✅ Fetched ${orders.length} orders for user`);
-        
-        // Find the most recent pending order
-        const pendingOrders = orders.filter((order: any) => 
-          order.status === "pending" && !order.isPaid
-        );
-        
-        console.log(`Found ${pendingOrders.length} pending unpaid orders`);
-        
-        if (pendingOrders.length > 0) {
-          // Sort by date descending (newest first)
-          pendingOrders.sort((a: any, b: any) => 
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          
-          // Use the newest pending order
-          const latestOrder = pendingOrders[0];
-          console.log("✅ Using latest pending order:", latestOrder._id);
-          setOrderId(latestOrder._id);
-          setOrderDetails(latestOrder);
-          
-          // Set the total
-          if (latestOrder.amount) {
-            console.log(`Setting total from latest order: ${latestOrder.amount}`);
-            setTotal(latestOrder.amount);
-            localStorage.setItem('currentOrderTotal', latestOrder.amount.toString());
-          }
-          
-          // Store in localStorage for future use
-          localStorage.setItem('currentOrderId', latestOrder._id);
-          orderFetched.current = true;
-        } else {
-          throw new Error("No pending orders found");
-        }
-      } catch (error: any) {
-        console.error("❌ Error fetching order ID:", error);
-        setError("Could not find a pending order. Please return to checkout.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    findOrder();
-  }, [orderId, isLoading]);
-
-  // Helper function to convert any country format to ISO 3166-1 alpha-2
-  const convertToISOCountryCode = (country: string): string => {
-    if (!country) return "US";
-    
-    // If already a 2-letter code, check if valid
-    if (country.length === 2) {
-      const upperCountry = country.toUpperCase();
-      const exists = countries.some(c => c.code === upperCountry);
-      if (exists) {
-        return upperCountry;
-      }
-    }
-    
-    // Common country mappings
-    const countryMap: Record<string, string> = {
-      "USA": "US",
-      "UNITED STATES": "US",
-      "UNITED STATES OF AMERICA": "US",
-      "CANADA": "CA",
-      "MEXICO": "MX",
-      "UK": "GB",
-      "UNITED KINGDOM": "GB",
-      "GREAT BRITAIN": "GB",
-      "AUSTRALIA": "AU",
-      "GERMANY": "DE",
-      "FRANCE": "FR",
-      "ITALY": "IT",
-      "SPAIN": "ES",
-      "JAPAN": "JP",
-      "CHINA": "CN",
-      "BRAZIL": "BR"
-    };
-    
-    // Try to match the country name/code
-    const upperCountry = country.toUpperCase();
-    if (countryMap[upperCountry]) {
-      return countryMap[upperCountry];
-    }
-    
-    // Try to find a matching country name
-    const foundCountry = countries.find(c => 
-      c.name.toUpperCase() === upperCountry
-    );
-    
-    if (foundCountry) {
-      return foundCountry.code;
-    }
-    
-    return "US";
-  };
-  
-  // Check payment status
-  const checkPaymentStatus = async () => {
-    if (!orderId) {
-      console.error("❌ No order ID available to check status");
-      return;
-    }
-    
+  // Simulate check payment status
+  const checkPaymentStatus = () => {
     setIsCheckingStatus(true);
     
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error("Authentication required");
-      
-      const response = await fetch(`${baseUrl}/paypal/payment-status/${orderId}`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch payment status");
-      }
-      
-      const statusData = await response.json();
-      console.log("Payment status data:", statusData);
-      
-      if (statusData.isPaid) {
-        setPaymentStatus("COMPLETED");
-        
-        toast.success("Payment has been completed successfully!");
-        
-        // Notify parent component
-        if (onPaymentComplete) {
-          onPaymentComplete({
-            success: true,
-            transactionId: statusData.paypalTransactionId || `PP-${Date.now()}`,
-            method: "PayPal"
-          });
-        }
-        
-        // Redirect to confirmation page after delay
-        setTimeout(() => {
-          router.push(`/checkout/confirmation?orderId=${orderId}&success=true`);
-        }, 1500);
-      } else {
-        setPaymentStatus(statusData.paymentStatus || null);
-        
-        // If payment wasn't found, show a message
-        if (!statusData.paymentStatus || statusData.paymentStatus === "NOT_STARTED") {
-          toast.info("No payment has been processed for this order yet");
-        } else {
-          toast.info(`Payment status: ${statusData.paymentStatus}`);
-        }
-      }
-      
-    } catch (error: any) {
-      console.error("❌ Error checking payment status:", error);
-      toast.error("Could not verify payment status");
-    } finally {
+    // Simulate API delay
+    setTimeout(() => {
       setIsCheckingStatus(false);
-    }
+      toast.info("No payment has been processed for this order yet");
+    }, 1500);
   };
 
-  // Capture PayPal Payment
-  const capturePaypalPayment = async (paypalOrderId: string, orderIdToUse: string) => {
-    console.log(`🔄 Capturing PayPal payment for PayPal order: ${paypalOrderId}`);
-    console.log(`Using order ID: ${orderIdToUse}`);
-    
+  // Simulate payment capture - after PayPal redirect
+  const simulatePaymentCapture = () => {
     setIsCapturingPayment(true);
-    setError(null);
     
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error("Authentication required");
-      
-      // Capture payment with PayPal
-      const response = await fetch(`${baseUrl}/paypal/capture-order`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          paypalOrderId,
-          orderId: orderIdToUse
-        })
-      });
-      
-      // Handle common PayPal errors better
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("❌ Capture response error:", errorData);
-        
-        // Special handling for ORDER_NOT_APPROVED
-        if (errorData.errorCode === "ORDER_NOT_APPROVED" || 
-            (errorData.message && errorData.message.includes("not been approved"))) {
-          throw new Error("This payment has not been approved yet. Please complete the PayPal checkout first.");
-        }
-        
-        throw new Error(errorData.message || "Failed to capture payment");
-      }
-      
-      const captureData = await response.json();
-      console.log("✅ Payment captured successfully:", captureData);
-      
-      // Clear the stored order ID as it's now paid
-      localStorage.removeItem('currentOrderId');
-      
-      setPaymentStatus("COMPLETED");
-      
-      toast.success("Payment completed successfully!");
-      
-      // Notify parent component that payment is complete
-      if (onPaymentComplete) {
-        onPaymentComplete({
-          success: true,
-          transactionId: captureData.captureId || `PP-${Date.now()}`,
-          method: "PayPal"
-        });
-      }
-      
-      // Redirect to confirmation page
-      router.push(`/checkout/confirmation?orderId=${orderIdToUse}&success=true`);
-      
-    } catch (error: any) {
-      console.error("❌ Error capturing PayPal payment:", error);
-      
-      setError(error.message || "Failed to capture payment. Please try again.");
-      toast.error(error.message || "Failed to capture payment");
-      
-      // If error is due to order not being approved, we need to redirect to PayPal again
-      if (error.message.includes("ORDER_NOT_APPROVED") || error.message.includes("not been approved")) {
-        toast.error("Payment not approved. Redirecting to PayPal...", {
-          duration: 3000
-        });
-        
-        // Wait a moment and try processing payment again
-        setTimeout(() => {
-          processPayPalPayment();
-        }, 3000);
-      }
-      
-    } finally {
+    // Simulate API delay
+    setTimeout(() => {
       setIsCapturingPayment(false);
-    }
+      setPaymentStatus("COMPLETED");
+      toast.success("Payment completed successfully!");
+    }, 2000);
   };
   
-  // Process PayPal payment - redirects to PayPal
-  const processPayPalPayment = async () => {
-    console.log("🔄 Processing PayPal payment");
-    
-    if (!orderId) {
-      console.log("❌ Cannot process PayPal payment: Order ID is missing");
-      toast.error("Order ID is required for PayPal payment");
-      return;
-    }
-    
+  // Simulate PayPal payment process
+  const processPayPalPayment = () => {
     setIsProcessing(true);
     setError(null);
     
-    try {
-      // Make sure we have a token and orderId
-      const token = localStorage.getItem("token");
-      if (!token) {
-        console.log("❌ Cannot process PayPal payment: Token is missing");
-        throw new Error("Authentication required");
-      }
-      
-      // Create the return URLs with proper order ID
-      const baseReturnURL = `${window.location.origin}/checkout/payment`;
-      // Add orderId and total as parameters to ensure they're passed back
-      const successUrl = `${baseReturnURL}?orderId=${orderId}&success=true` + 
-                         (total ? `&total=${total}` : '');
-      const cancelUrl = `${baseReturnURL}?orderId=${orderId}&success=false` +
-                         (total ? `&total=${total}` : '');
-      
-      console.log("PayPal callback URLs:", { successUrl, cancelUrl });
-      
-      // Call PayPal create-order endpoint
-      console.log(`🔄 Creating PayPal order for order ID: ${orderId}`);
-      const response = await fetch(`${baseUrl}/paypal/create-order`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          orderId,
-          returnUrl: successUrl,
-          cancelUrl: cancelUrl,
-          countryCode
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("❌ PayPal create-order API error:", errorData);
-        throw new Error(errorData.message || "Failed to initialize PayPal payment");
-      }
-      
-      const paypalData = await response.json();
-      console.log("✅ PayPal order created:", paypalData);
-      
-      // Store the PayPal order ID for later
-      setPaypalOrderId(paypalData.paypalOrderId);
-      
-      // Store data in localStorage for recovery if needed
-      localStorage.setItem('currentOrderId', orderId);
-      if (total) {
-        localStorage.setItem('currentOrderTotal', total.toString());
-      }
-      
-      if (paypalData.amount) {
-        localStorage.setItem('currentOrderTotal', paypalData.amount.toString());
-        if (!total) {
-          setTotal(paypalData.amount);
-        }
-      }
-      
-      // If we have an approval URL, redirect to PayPal
-      if (paypalData.approvalUrl) {
-        console.log(`🔄 Redirecting to PayPal: ${paypalData.approvalUrl}`);
-        window.location.href = paypalData.approvalUrl;
-      } else {
-        throw new Error("PayPal approval URL not found");
-      }
-      
-    } catch (error: any) {
-      console.error("❌ Error initializing PayPal payment:", error);
-      setError(error.message || "Failed to initialize PayPal payment");
-      toast.error(error.message || "Failed to initialize PayPal payment");
+    // Simulate API delay then PayPal redirect
+    setTimeout(() => {
       setIsProcessing(false);
-    }
+      
+      // Show toast asking about simulating success or failure
+      toast(
+        <div className="flex flex-col gap-2">
+          <p className="font-medium">Demo: Simulate PayPal result</p>
+          <div className="flex gap-2 mt-1">
+            <Button 
+              size="sm" 
+              onClick={() => simulatePaymentCapture()}
+              className="bg-green-500 hover:bg-green-600 text-white"
+            >
+              Success
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={() => setError("Payment was canceled by the user")}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Failure
+            </Button>
+          </div>
+        </div>,
+        { duration: 10000 }
+      );
+    }, 1500);
   };
-
-  // Debug information
-  console.log("🔄 PaymentComponent state:", { 
-    orderId, 
-    total, 
-    paymentStatus,
-    isProcessing,
-    isLoading,
-    isCapturingPayment
-  });
 
   // Show payment completed state
   if (paymentStatus === "COMPLETED") {
@@ -659,7 +162,7 @@ function PaymentComponent({ total: initialTotal, orderId: propOrderId, onPayment
             Your payment has been processed successfully. We're preparing your order.
           </p>
           <Button asChild>
-            <Link href={`/checkout/confirmation?orderId=${orderId}&success=true`}>
+            <Link href={`/checkout/confirmation?orderId=${propOrderId}&success=true`}>
               View Order Confirmation
             </Link>
           </Button>
@@ -677,29 +180,6 @@ function PaymentComponent({ total: initialTotal, orderId: propOrderId, onPayment
           <p className="text-center text-muted-foreground">
             Loading payment information...
           </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Show error if no order ID could be found
-  if (!orderId && !isLoading) {
-    return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardContent className="pt-6">
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Order Not Found</AlertTitle>
-            <AlertDescription>
-              No pending order was found. Please return to checkout and try again.
-            </AlertDescription>
-          </Alert>
-          
-          <div className="flex justify-center mt-4">
-            <Button asChild>
-              <Link href="/checkout">Return to Checkout</Link>
-            </Button>
-          </div>
         </CardContent>
       </Card>
     );
@@ -724,10 +204,10 @@ function PaymentComponent({ total: initialTotal, orderId: propOrderId, onPayment
       <CardHeader>
         <CardTitle>Payment Details</CardTitle>
         <CardDescription>Complete your purchase with PayPal</CardDescription>
-        {orderId && (
+        {propOrderId && (
           <div className="flex justify-between items-center mt-1">
             <p className="text-xs text-muted-foreground">
-              Order ID: {orderId}
+              Order ID: {propOrderId}
             </p>
             <Button 
               variant="ghost" 
@@ -745,9 +225,9 @@ function PaymentComponent({ total: initialTotal, orderId: propOrderId, onPayment
             </Button>
           </div>
         )}
-        {total !== undefined && (
+        {initialTotal !== undefined && (
           <p className="text-sm font-medium mt-1">
-            Total: ${total.toFixed(2)}
+            Total: ${initialTotal.toFixed(2)}
           </p>
         )}
       </CardHeader>
@@ -804,7 +284,7 @@ function PaymentComponent({ total: initialTotal, orderId: propOrderId, onPayment
         <Button 
           className="w-full bg-blue-600 hover:bg-blue-700" 
           onClick={processPayPalPayment}
-          disabled={isProcessing || !orderId}
+          disabled={isProcessing}
         >
           {isProcessing ? (
             <>

@@ -23,7 +23,7 @@ interface Product {
 
 // Hard-code the base URL for immediate testing
 // You can replace this with the environment variable once confirmed working
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000";
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1";
 
 // Add debug log to check if the environment variable is loading
 console.log("Base URL:", process.env.NEXT_PUBLIC_BASE_URL);

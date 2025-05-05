@@ -4,95 +4,40 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-
-type OrderDetails = {
-  orderNumber?: string;
-  orderId?: string;
-  paymentStatus?: string;
-  total?: number;
-  date?: string;
-};
+import { Button } from "@/components/ui/button";
 
 export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams();
-  const [paymentStatus, setPaymentStatus] = useState<'success' | 'failed' | 'processing'>('processing');
-  const [isLoading, setIsLoading] = useState(true);
-  const [orderDetails, setOrderDetails] = useState<OrderDetails>({});
-  const [error, setError] = useState<string | null>(null);
-  
-  // Get status and order info from URL query parameters
-  useEffect(() => {
-    console.log('🔍 Checkout success page loaded, checking parameters...');
-    
-    const status = searchParams.get('status');
-    const success = searchParams.get('success');
-    const orderId = searchParams.get('orderId');
-    const orderNumber = searchParams.get('orderNumber');
-    
-    console.log(`📋 URL Parameters: status=${status}, success=${success}, orderId=${orderId}, orderNumber=${orderNumber}`);
-    
-    if (status === 'failed' || success === 'false') {
-      console.log('❌ Setting payment status to failed based on URL parameters');
-      setPaymentStatus('failed');
-    } else if (success === 'true') {
-      console.log('✅ Setting payment status to success based on URL parameters');
-      setPaymentStatus('success');
-    }
-    
-    // Save basic order details from URL parameters
-    setOrderDetails({
-      orderNumber: orderNumber || undefined,
-      orderId: orderId || undefined,
-    });
-    
-    // If we have an orderId, fetch the payment status from API
-    if (orderId) {
-      console.log(`🔍 Found order ID in URL: ${orderId}, checking payment status...`);
-      checkPaymentStatus(orderId);
-    } else {
-      console.log('⚠️ No order ID found in URL, skipping payment verification');
-      setIsLoading(false);
-    }
-  }, [searchParams]);
-  
-  // Function to check payment status with the backend
-  const checkPaymentStatus = async (orderId: string) => {
+  const [paymentStatus, setPaymentStatus] = useState<'success' | 'failed' | 'processing'>('success');
+  const [isLoading, setIsLoading] = useState(false);
+  // Function to retrieve the user ID from localStorage
+  const getUserIdFromLocalStorage = () => {
     try {
-      console.log(`📡 Fetching payment status for order: ${orderId}`);
-      setIsLoading(true);
-      
-      const response = await fetch(`/api/order/payment-status/${orderId}`);
-      console.log(`📡 API response status: ${response.status}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`📋 Payment status response:`, data);
-        
-        if (data.success) {
-          setOrderDetails(prevDetails => ({
-            ...prevDetails,
-            paymentStatus: data.isPaid ? 'Paid' : 'Pending',
-            total: data.amount,
-            date: new Date().toLocaleDateString()
-          }));
-          
-          // Update payment status based on API response
-          setPaymentStatus(data.isPaid ? 'success' : 'processing');
-          console.log(`💰 Payment status from API: ${data.isPaid ? 'PAID' : 'NOT PAID'}`);
-        } else {
-          console.error('❌ API returned error:', data.message);
-          setError(`Error checking payment status: ${data.message}`);
-        }
-      } else {
-        console.error(`❌ API returned status: ${response.status}`);
-        setError(`Error checking payment status. Server returned ${response.status}`);
-      }
+      const storedUserId = localStorage.getItem("userId") || ""
+      return storedUserId
     } catch (err) {
-      console.error('❌ Error checking payment status:', err);
-      setError('Failed to check payment status. Please contact customer support.');
-    } finally {
-      setIsLoading(false);
+      console.error("Error accessing localStorage:", err)
+      return ""
     }
+  }
+  // Mock data for demo
+  const orderDetails = {
+    orderNumber: "ORD-12345-DEMO",
+    orderId: "ORD-12345-DEMO",
+    paymentStatus: "Paid",
+    total: 209.96,
+    date: new Date().toLocaleDateString()
+  };
+
+  // Simulate checking payment status
+  const checkPaymentStatus = () => {
+    setIsLoading(true);
+    
+    // Simulate API delay
+    setTimeout(() => {
+      setIsLoading(false);
+      setPaymentStatus('success');
+    }, 1500);
   };
 
   return (
@@ -120,36 +65,22 @@ export default function CheckoutSuccessPage() {
               </p>
               
               {/* Order details section */}
-              {orderDetails.orderNumber && (
-                <div className="mt-6 bg-gray-50 p-4 rounded-md">
-                  <h2 className="text-lg font-medium text-gray-900">Order Details</h2>
-                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <div className="text-gray-500">Order Number:</div>
-                    <div className="font-medium text-gray-900">{orderDetails.orderNumber}</div>
-                    
-                    {orderDetails.total && (
-                      <>
-                        <div className="text-gray-500">Total:</div>
-                        <div className="font-medium text-gray-900">${orderDetails.total.toFixed(2)}</div>
-                      </>
-                    )}
-                    
-                    {orderDetails.paymentStatus && (
-                      <>
-                        <div className="text-gray-500">Payment Status:</div>
-                        <div className="font-medium text-gray-900">{orderDetails.paymentStatus}</div>
-                      </>
-                    )}
-                    
-                    {orderDetails.date && (
-                      <>
-                        <div className="text-gray-500">Date:</div>
-                        <div className="font-medium text-gray-900">{orderDetails.date}</div>
-                      </>
-                    )}
-                  </div>
+              <div className="mt-6 bg-gray-50 p-4 rounded-md">
+                <h2 className="text-lg font-medium text-gray-900">Order Details</h2>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="text-gray-500">Order Number:</div>
+                  <div className="font-medium text-gray-900">{orderDetails.orderNumber}</div>
+                  
+                  <div className="text-gray-500">Total:</div>
+                  <div className="font-medium text-gray-900">${orderDetails.total.toFixed(2)}</div>
+                  
+                  <div className="text-gray-500">Payment Status:</div>
+                  <div className="font-medium text-gray-900">{orderDetails.paymentStatus}</div>
+                  
+                  <div className="text-gray-500">Date:</div>
+                  <div className="font-medium text-gray-900">{orderDetails.date}</div>
                 </div>
-              )}
+              </div>
               
               <div className="mt-8 border-t border-gray-200 pt-6">
                 <h2 className="text-lg font-medium text-gray-900">What's next?</h2>
@@ -167,23 +98,16 @@ export default function CheckoutSuccessPage() {
               <p className="mt-3 text-lg text-gray-500">
                 Your payment is being processed. This may take a few moments.
               </p>
-              {orderDetails.orderNumber && (
-                <p className="mt-2 text-md text-gray-700">
-                  Order Number: <span className="font-semibold">{orderDetails.orderNumber}</span>
-                </p>
-              )}
-              {error && (
-                <div className="mt-4 p-3 bg-yellow-50 text-yellow-800 rounded-md">
-                  {error}
-                </div>
-              )}
+              <p className="mt-2 text-md text-gray-700">
+                Order Number: <span className="font-semibold">{orderDetails.orderNumber}</span>
+              </p>
               <div className="mt-6">
-                <button 
-                  onClick={() => orderDetails.orderId && checkPaymentStatus(orderDetails.orderId)}
+                <Button 
+                  onClick={checkPaymentStatus}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
                 >
                   Check Status Again
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -195,11 +119,6 @@ export default function CheckoutSuccessPage() {
               <p className="mt-3 text-lg text-gray-500">
                 We couldn't process your payment. Please try again or contact customer support.
               </p>
-              {error && (
-                <div className="mt-4 p-3 bg-red-50 text-red-800 rounded-md">
-                  {error}
-                </div>
-              )}
             </div>
           )}
           
@@ -213,7 +132,7 @@ export default function CheckoutSuccessPage() {
             
             {paymentStatus === 'success' && (
               <Link 
-                href="/account/orders" 
+                href="/orders" 
                 className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
               >
                 View My Orders

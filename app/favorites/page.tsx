@@ -39,6 +39,40 @@ export default function FavoritesPage() {
       return ""
     }
   }
+  // This working function checks if a product is in the cart
+  async function checkIfInCart(userId: string, productId: string, token: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${baseUrl}/cart/find/${userId}`, {
+        headers: { 
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        return false; // No cart found or error
+      }
+      
+      const cartData = await response.json();
+      
+      // Handle different API response formats
+      let products = [];
+      if (cartData.products && Array.isArray(cartData.products)) {
+        products = cartData.products;
+      } else if (cartData.cart && cartData.cart.products && Array.isArray(cartData.cart.products)) {
+        products = cartData.cart.products;
+      }
+      
+      // Check if product exists in cart
+      return products.some((item: { productId: string | { _id: string } }) => 
+        item.productId === productId ||
+        (typeof item.productId === 'object' && item.productId?._id === productId)
+      );
+    } catch (error) {
+      console.error("Error checking if product is in cart:", error);
+      return false;
+    }
+  }
+
 
   // Load user ID on component mount
   useEffect(() => {

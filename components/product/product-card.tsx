@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link" 
-import { BookmarkCheck, ShoppingCart, Star, Heart, Check, MoreHorizontal } from "lucide-react"
+import { BookmarkCheck, ShoppingCart, Star, Heart, Check, MoreHorizontal, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -233,7 +233,7 @@ async function checkIfInCart(userId: string, productId: string, token: string): 
       item.productId === productId
     );
   } catch (error) {
-    console.error("Error checking if product is in cart:", error);
+    console.error("Error checking if product is in cart:", error)
     return false;
   }
 }
@@ -247,6 +247,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
   const [isTogglingBookmark, setIsTogglingBookmark] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
   
   // Default fallback values
   const rating = product.rating || 0
@@ -509,6 +510,50 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   }
 
+  /**
+   * Handle sharing product
+   */
+  const handleShare = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (isSharing) return
+    setIsSharing(true)
+    
+    try {
+      // Use Web Share API if available
+      if (navigator.share) {
+        await navigator.share({
+          title: product.title,
+          text: product.desc || `Check out this ${product.title}`,
+          url: `${window.location.origin}/shop/${product._id}`
+        })
+        
+        toast("Shared successfully", {
+          description: "Product has been shared"
+        })
+      } else {
+        // Fallback: Copy link to clipboard
+        const url = `${window.location.origin}/shop/${product._id}`
+        await navigator.clipboard.writeText(url)
+        
+        toast("Link copied", {
+          description: "Product link copied to clipboard"
+        })
+      }
+    } catch (error: any) {
+      // User cancelled or error occurred
+      if (error.name !== 'AbortError') {
+        console.error("Error sharing product:", error)
+        toast("Error", { 
+          description: "Failed to share product"
+        })
+      }
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
   // Format the price safely
   const formattedPrice = typeof product.price === 'number' 
     ? product.price.toFixed(2) 
@@ -556,6 +601,21 @@ export default function ProductCard({ product }: ProductCardProps) {
             <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           ) : (
             <Heart className={cn("h-5 w-5", isFavorite ? "fill-red-500 text-red-500" : "text-gray-700")} />
+          )}
+        </Button>
+        
+        {/* Share Button - Add this new button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-14 right-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white shadow-sm transform transition-all duration-200 hover:scale-110 z-10"
+          onClick={handleShare}
+          disabled={isSharing}
+        >
+          {isSharing ? (
+            <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Share2 className="h-5 w-5 text-gray-700" />
           )}
         </Button>
         

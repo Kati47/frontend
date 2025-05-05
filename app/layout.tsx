@@ -9,9 +9,9 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "StyleShop | Modern E-Commerce",
-  description: "A modern e-commerce platform with role-based authentication",
-    generator: 'v0.dev'
+  title: "Kadéa Design | Modern E-Commerce",
+  description: "The future e-commerce platforms",
+  authors: [{ name: 'Khadija Houda' }],
 }
 
 export default function RootLayout({
