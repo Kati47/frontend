@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { BookmarkCheck, Grid, List, ShoppingCart, X, ChevronLeft, ChevronRight, Info, Package, AlertTriangle, Check } from "lucide-react"
+import { BookmarkCheck, Grid, List, ShoppingCart, X, ChevronLeft, ChevronRight, Info, AlertTriangle, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,10 +12,12 @@ import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useTranslation } from "@/lib/i18n/client"
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1"
 
 export default function SavedForLaterPage() {
+  const { t } = useTranslation()
   const router = useRouter()
   const [savedItems, setSavedItems] = useState<any[]>([])
   const [viewType, setViewType] = useState("grid")
@@ -104,15 +106,15 @@ export default function SavedForLaterPage() {
 
     // Check if user is logged in
     if (!storedUserId) {
-      toast.error("Please log in to view your saved items", {
+      toast.error(t("savedItems.loginRequired"), {
         action: {
-          label: "Login",
+          label: t("common.login"),
           onClick: () => router.push("/login")
         }
       })
       setIsLoading(false)
     }
-  }, [router])
+  }, [router, t])
 
   // Load saved for later items from API
   const loadSavedForLaterItems = async () => {
@@ -133,16 +135,16 @@ export default function SavedForLaterPage() {
       )
 
       if (!response.ok) {
-        throw new Error("Failed to fetch saved items")
+        throw new Error(t("savedItems.fetchError"))
       }
 
       const data = await response.json()
       console.log("Saved for later data:", data)
       
-      // Format saved items for consistent rendering
+      // Format saved items for consistent rendering with hardcoded stock status
       const formattedItems = (data.products || []).map((product: any) => ({
         id: product._id,
-        name: product.title || product.name || "Product",
+        name: product.title || product.name || t("product.defaultCategory"),
         price: parseFloat(product.price || 0),
         image: product.img || product.image || "/placeholder.svg",
         color: product.color || "",
@@ -150,6 +152,7 @@ export default function SavedForLaterPage() {
         description: product.desc || "",
         savedAt: product.savedAt || new Date().toISOString(),
         fromCart: product.fromCart || false,
+        // Use hardcoded stock status instead of translations
         stock: product.inStock === false ? "Out of Stock" : 
                (product.quantity && product.quantity <= 5) ? "Low Stock" : "In Stock",
         isOnSale: product.salePrice && product.price > product.salePrice,
@@ -203,13 +206,13 @@ export default function SavedForLaterPage() {
       })
       
       if (!response.ok) {
-        throw new Error("Failed to remove from saved items")
+        throw new Error(t("savedItems.removeError"))
       }
       
       const result = await response.json()
       console.log("Remove saved item result:", result)
       
-      toast.success("Item removed from saved list")
+      toast.success(t("savedItems.itemRemoved"))
       
       // If we removed the last item on the current page, go to the previous page
       if (savedItems.length === 1 && currentPage > 1) {
@@ -220,7 +223,7 @@ export default function SavedForLaterPage() {
       }
     } catch (error) {
       console.error("Error removing saved item:", error)
-      toast.error("Failed to remove saved item")
+      toast.error(t("savedItems.removeError"))
       loadSavedForLaterItems() // Refresh on error
     }
   }
@@ -229,7 +232,7 @@ export default function SavedForLaterPage() {
   const clearAllSavedItems = async () => {
     if (!userId || savedItems.length === 0) return
     
-    if (!confirm("Are you sure you want to remove all saved items?")) {
+    if (!confirm(t("savedItems.confirmClearAll"))) {
       return
     }
     
@@ -258,10 +261,10 @@ export default function SavedForLaterPage() {
       setTotalItems(0)
       setCurrentPage(1)
       
-      toast.success("All saved items cleared")
+      toast.success(t("savedItems.allItemsRemoved"))
     } catch (error) {
       console.error("Error clearing saved items:", error)
-      toast.error("Failed to clear all saved items")
+      toast.error(t("savedItems.clearError"))
       loadSavedForLaterItems() // Refresh on error
     } finally {
       setIsLoading(false)
@@ -271,7 +274,7 @@ export default function SavedForLaterPage() {
   // Move item to cart
   const moveToCart = async (savedItem: any) => {
     if (!userId) {
-      toast.error("Please log in to add items to cart")
+      toast.error(t("cart.loginRequired"))
       return
     }
     
@@ -283,9 +286,10 @@ export default function SavedForLaterPage() {
       // Check if already in cart
       const isInCart = cartItems.includes(savedItem.id);
       if (isInCart) {
+        // Use hardcoded text instead of translation
         toast.info("This item is already in your cart", {
           action: {
-            label: "View Cart",
+            label: t("cart.viewCart"),
             onClick: () => router.push("/cart")
           }
         });
@@ -307,7 +311,7 @@ export default function SavedForLaterPage() {
       })
       
       if (!removeResponse.ok) {
-        throw new Error("Failed to remove from saved items")
+        throw new Error(t("savedItems.removeError"))
       }
       
       // Then add to cart
@@ -335,15 +339,15 @@ export default function SavedForLaterPage() {
       })
       
       if (!addToCartResponse.ok) {
-        throw new Error("Failed to add to cart")
+        throw new Error(t("cart.addError"))
       }
       
       // Update UI
       setSavedItems(prev => prev.filter(item => item.id !== savedItem.id))
       
-      toast.success("Item moved to cart", {
+      toast.success(t("savedItems.movedToCart"), {
         action: {
-          label: "View Cart",
+          label: t("cart.viewCart"),
           onClick: () => router.push("/cart")
         }
       })
@@ -357,7 +361,7 @@ export default function SavedForLaterPage() {
       }
     } catch (error: any) {
       console.error("Error moving to cart:", error)
-      toast.error(error.message || "Failed to move item to cart")
+      toast.error(error.message || t("savedItems.moveToCartError"))
       loadSavedForLaterItems() // Refresh on error
     } finally {
       setMovingItem(null)
@@ -370,7 +374,7 @@ export default function SavedForLaterPage() {
       return
     }
     
-    if (!confirm("Move all saved items to your cart?")) {
+    if (!confirm(t("savedItems.confirmMoveAllToCart"))) {
       return
     }
     
@@ -426,9 +430,9 @@ export default function SavedForLaterPage() {
       // Clear current page
       setSavedItems([])
       
-      toast.success("Items moved to cart", {
+      toast.success(t("savedItems.itemsMovedToCart"), {
         action: {
-          label: "View Cart",
+          label: t("cart.viewCart"),
           onClick: () => router.push("/cart")
         }
       })
@@ -438,13 +442,14 @@ export default function SavedForLaterPage() {
       loadSavedForLaterItems()
     } catch (error: any) {
       console.error("Error adding all to cart:", error)
-      toast.error(error.message || "Failed to move items to cart")
+      toast.error(error.message || t("savedItems.moveAllToCartError"))
       loadSavedForLaterItems() // Refresh on error
     } finally {
       setIsLoading(false)
     }
   }
 
+  // Updated to use direct string comparison instead of translations
   const getStockColor = (stock: string) => {
     switch (stock) {
       case "In Stock":
@@ -468,7 +473,7 @@ export default function SavedForLaterPage() {
         day: 'numeric' 
       })
     } catch (error) {
-      return "Recently"
+      return t("savedItems.recently")
     }
   }
 
@@ -479,7 +484,7 @@ export default function SavedForLaterPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
             <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-          <h2 className="text-xl font-medium mb-2">Loading your saved items...</h2>
+          <h2 className="text-xl font-medium mb-2">{t("savedItems.loading")}</h2>
         </div>
       </div>
     )
@@ -489,21 +494,21 @@ export default function SavedForLaterPage() {
     <div className="container py-8">
       <div className="flex items-center gap-2 mb-6">
         <Link href="/" className="text-muted-foreground hover:text-foreground">
-          Home
+          {t("common.home")}
         </Link>
         <span className="text-muted-foreground">/</span>
         <Link href="/cart" className="text-muted-foreground hover:text-foreground">
-          Cart
+          {t("cart.title")}
         </Link>
         <span className="text-muted-foreground">/</span>
-        <span>Saved For Later</span>
+        <span>{t("savedItems.title")}</span>
       </div>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Saved For Later</h1>
+          <h1 className="text-3xl font-bold">{t("savedItems.title")}</h1>
           <p className="text-muted-foreground mt-1">
-            {totalItems} {totalItems === 1 ? "item" : "items"} saved for future purchase
+            {totalItems} {totalItems === 1 ? t("common.item") : t("common.items")} {t("savedItems.itemsDescription")}
           </p>
         </div>
 
@@ -512,11 +517,11 @@ export default function SavedForLaterPage() {
             <TabsList className="grid w-[120px] grid-cols-2">
               <TabsTrigger value="grid" className="flex items-center gap-2">
                 <Grid className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:inline-block">Grid</span>
+                <span className="sr-only sm:not-sr-only sm:inline-block">{t("common.grid")}</span>
               </TabsTrigger>
               <TabsTrigger value="list" className="flex items-center gap-2">
                 <List className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:inline-block">List</span>
+                <span className="sr-only sm:not-sr-only sm:inline-block">{t("common.list")}</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -529,14 +534,14 @@ export default function SavedForLaterPage() {
                 disabled={isLoading}
               >
                 <ShoppingCart className="h-4 w-4 mr-2" />
-                Move All to Cart
+                {t("savedItems.moveAllToCart")}
               </Button>
               <Button 
                 variant="outline" 
                 onClick={clearAllSavedItems}
                 disabled={isLoading}
               >
-                Clear All
+                {t("savedItems.clearAll")}
               </Button>
             </div>
           )}
@@ -554,12 +559,12 @@ export default function SavedForLaterPage() {
             <div className="rounded-full bg-muted p-6 mb-4">
               <BookmarkCheck className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h2 className="text-xl font-medium mb-2">Please log in to view saved items</h2>
+            <h2 className="text-xl font-medium mb-2">{t("savedItems.pleaseLogin")}</h2>
             <p className="text-muted-foreground max-w-md mb-6">
-              Sign in to your account to see items you've saved for later.
+              {t("savedItems.loginDescription")}
             </p>
             <Button asChild>
-              <Link href="/login">Log In</Link>
+              <Link href="/login">{t("common.login")}</Link>
             </Button>
           </motion.div>
         ) : hasError ? (
@@ -572,12 +577,12 @@ export default function SavedForLaterPage() {
             <div className="rounded-full bg-red-100 dark:bg-red-900/20 p-6 mb-4">
               <AlertTriangle className="h-10 w-10 text-red-500" />
             </div>
-            <h2 className="text-xl font-medium mb-2">Failed to load saved items</h2>
+            <h2 className="text-xl font-medium mb-2">{t("savedItems.loadError")}</h2>
             <p className="text-muted-foreground max-w-md mb-6">
-              There was a problem loading your saved items. Please try again.
+              {t("savedItems.loadErrorDescription")}
             </p>
             <Button onClick={() => loadSavedForLaterItems()}>
-              Retry
+              {t("common.tryAgain")}
             </Button>
           </motion.div>
         ) : savedItems.length === 0 && currentPage === 1 ? (
@@ -590,16 +595,16 @@ export default function SavedForLaterPage() {
             <div className="rounded-full bg-muted p-6 mb-4">
               <BookmarkCheck className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h2 className="text-xl font-medium mb-2">No items saved for later</h2>
+            <h2 className="text-xl font-medium mb-2">{t("savedItems.emptyList")}</h2>
             <p className="text-muted-foreground max-w-md mb-6">
-              Items you save for later while shopping will appear here so you can easily find them again.
+              {t("savedItems.emptyDescription")}
             </p>
             <div className="flex gap-3">
               <Button asChild>
-                <Link href="/shop">Browse Products</Link>
+                <Link href="/shop">{t("savedItems.browseProducts")}</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href="/cart">View Cart</Link>
+                <Link href="/cart">{t("cart.viewCart")}</Link>
               </Button>
             </div>
           </motion.div>
@@ -610,7 +615,7 @@ export default function SavedForLaterPage() {
                 <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 mr-3 flex-shrink-0" />
                 <div>
                   <p className="text-blue-700 dark:text-blue-300 text-sm">
-                    Items saved for later are stored in your account. Add them to your cart when you're ready to purchase.
+                    {t("savedItems.infoMessage")}
                   </p>
                 </div>
               </div>
@@ -619,8 +624,8 @@ export default function SavedForLaterPage() {
             <Tabs defaultValue={viewType} value={viewType} className="w-full">
               <div className="hidden">
                 <TabsList>
-                  <TabsTrigger value="grid">Grid</TabsTrigger>
-                  <TabsTrigger value="list">List</TabsTrigger>
+                  <TabsTrigger value="grid">{t("common.grid")}</TabsTrigger>
+                  <TabsTrigger value="list">{t("common.list")}</TabsTrigger>
                 </TabsList>
               </div>
               
@@ -652,7 +657,7 @@ export default function SavedForLaterPage() {
                               fill
                               className="object-cover"
                             />
-                            {isOnSale && <Badge className="absolute top-2 left-2">Sale</Badge>}
+                            {isOnSale && <Badge className="absolute top-2 left-2">{t("product.sale")}</Badge>}
                             {isInCart && (
                               <Badge className="absolute bottom-2 left-2 bg-green-600 hover:bg-green-700">
                                 In Cart
@@ -660,7 +665,7 @@ export default function SavedForLaterPage() {
                             )}
                             <Badge variant="secondary" className="absolute top-2 right-2 flex items-center gap-1">
                               <BookmarkCheck className="h-3.5 w-3.5" />
-                              <span>Saved</span>
+                              <span>{t("savedItems.saved")}</span>
                             </Badge>
                           </div>
                           <CardContent className="p-4">
@@ -670,10 +675,11 @@ export default function SavedForLaterPage() {
                               </h3>
                             </Link>
                             <p className="text-sm text-muted-foreground mb-1">
-                              Saved {formatDate(item.savedAt)}
+                              {t("savedItems.savedOn")} {formatDate(item.savedAt)}
                             </p>
                             <div className="flex justify-between items-center mt-2">
                               <div className="flex items-baseline gap-2">
+                                {/* Direct price formatting without translation */}
                                 <span className="font-semibold">${parseFloat(displayPrice).toFixed(2)}</span>
                                 {originalPrice && (
                                   <span className="text-sm text-muted-foreground line-through">
@@ -701,7 +707,7 @@ export default function SavedForLaterPage() {
                                 ) : isInCart ? (
                                   <>
                                     <Check className="h-4 w-4 mr-2" />
-                                    Already In Cart
+                                    Already in Cart
                                   </>
                                 ) : (
                                   <>
@@ -757,7 +763,7 @@ export default function SavedForLaterPage() {
                                 className="object-cover"
                               />
                               {isOnSale && (
-                                <Badge className="absolute top-2 left-2">Sale</Badge>
+                                <Badge className="absolute top-2 left-2">{t("product.sale")}</Badge>
                               )}
                               {isInCart && (
                                 <Badge className="absolute bottom-2 left-2 bg-green-600 hover:bg-green-700">
@@ -766,7 +772,7 @@ export default function SavedForLaterPage() {
                               )}
                               <Badge variant="secondary" className="absolute top-2 right-2 flex items-center gap-1">
                                 <BookmarkCheck className="h-3.5 w-3.5" />
-                                <span>Saved</span>
+                                <span>{t("savedItems.saved")}</span>
                               </Badge>
                             </div>
                             <CardContent className="flex-1 p-4 flex flex-col justify-between">
@@ -779,14 +785,15 @@ export default function SavedForLaterPage() {
                                       </h3>
                                     </Link>
                                     <p className="text-sm text-muted-foreground">
-                                      Saved {formatDate(item.savedAt)}
+                                      {t("savedItems.savedOn")} {formatDate(item.savedAt)}
                                     </p>
                                     {item.fromCart && (
-                                      <Badge variant="outline" className="text-xs mt-1">Moved from cart</Badge>
+                                      <Badge variant="outline" className="text-xs mt-1">{t("savedItems.movedFromCart")}</Badge>
                                     )}
                                   </div>
                                   <div className="text-right">
                                     <div className="flex items-baseline gap-2">
+                                      {/* Direct price formatting without translation */}
                                       <span className="font-semibold">${parseFloat(displayPrice).toFixed(2)}</span>
                                       {originalPrice && (
                                         <span className="text-sm text-muted-foreground line-through">
@@ -800,8 +807,8 @@ export default function SavedForLaterPage() {
                                   </div>
                                 </div>
                                 
-                                {item.color && <p className="text-sm text-muted-foreground mt-2">Color: {item.color}</p>}
-                                {item.size && <p className="text-sm text-muted-foreground mt-1">Size: {item.size}</p>}
+                                {item.color && <p className="text-sm text-muted-foreground mt-2">{t("product.color")}: {item.color}</p>}
+                                {item.size && <p className="text-sm text-muted-foreground mt-1">{t("product.size")}: {item.size}</p>}
                                 
                                 {item.description && (
                                   <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
@@ -825,7 +832,7 @@ export default function SavedForLaterPage() {
                                   ) : isInCart ? (
                                     <>
                                       <Check className="h-4 w-4 mr-2" />
-                                      Already In Cart
+                                      Already in Cart
                                     </>
                                   ) : (
                                     <>
@@ -839,7 +846,7 @@ export default function SavedForLaterPage() {
                                   size="sm" 
                                   onClick={() => removeSavedItem(item.id)}
                                 >
-                                  Remove
+                                  {t("common.remove")}
                                 </Button>
                               </div>
                             </CardContent>

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import ProductCard from "@/components/product/product-card";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "@/lib/i18n/client";
 
 interface Product {
   _id: string; 
@@ -23,13 +24,14 @@ interface Product {
 
 // Hard-code the base URL for immediate testing
 // You can replace this with the environment variable once confirmed working
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1";
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
 // Add debug log to check if the environment variable is loading
 console.log("Base URL:", process.env.NEXT_PUBLIC_BASE_URL);
 
 export default function ShopPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,18 +159,18 @@ const fetchProducts = async () => {
           setProducts(productsArray[0] as Product[]);
         } else {
           console.error("18. No products found in response or unable to determine product structure");
-          throw new Error("No products found in response or unexpected data structure");
+          throw new Error(t("shop.errors.noProductsFound"));
         }
       }
     } else {
       console.error("16. Invalid data format");
-      throw new Error("Invalid data format: Expected products data");
+      throw new Error(t("shop.errors.invalidDataFormat"));
     }
     console.log("19. Data handling complete");
     
   } catch (error) {
     console.error("20. Error in fetchProducts:", error);
-    setError(error instanceof Error ? error.message : "Failed to fetch products");
+    setError(error instanceof Error ? error.message : t("shop.errors.failedToFetch"));
     setProducts([]); // Set to empty array to prevent further errors
   } finally {
     console.log("21. Setting isLoading to false");
@@ -178,7 +180,7 @@ const fetchProducts = async () => {
 };
     
     fetchProducts();
-  }, [router]); // Remove baseUrl from dependencies as it shouldn't change
+  }, [router, t]); // Add t to the dependencies
 
   // Use safe filtering that works even if products is not yet an array
   const filteredProducts = Array.isArray(products) 
@@ -295,15 +297,15 @@ const fetchProducts = async () => {
   return (
     <div className="container py-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Shop</h1>
-        <p className="text-muted-foreground mt-2">Browse our collection of premium products</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t("shop.title")}</h1>
+        <p className="text-muted-foreground mt-2">{t("shop.description")}</p>
       </div>
 
       <div className="flex justify-between items-center mt-6">
         <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search products..."
+            placeholder={t("shop.searchPlaceholder")}
             className="pl-10 w-full sm:w-[300px]"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -316,27 +318,27 @@ const fetchProducts = async () => {
         <div className="mt-10 text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
             <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">
-              Loading...
+              {t("common.loading")}
             </span>
           </div>
-          <p className="mt-2 text-muted-foreground">Loading products...</p>
+          <p className="mt-2 text-muted-foreground">{t("shop.loadingProducts")}</p>
         </div>
       )}
       
       {error && (
         <div className="mt-10 p-4 border border-red-200 rounded-md bg-red-50">
-          <p className="text-red-600">Error: {error}</p>
+          <p className="text-red-600">{t("common.error")}: {error}</p>
           <p className="text-sm text-red-500 mt-1">
-            Please try refreshing the page or <button onClick={() => router.push('/login')} className="underline text-red-700">login again</button>
+            {t("shop.errors.tryRefreshing")} <button onClick={() => router.push('/login')} className="underline text-red-700">{t("shop.errors.loginAgain")}</button>
           </p>
         </div>
       )}
 
       {!isLoading && !error && filteredProducts.length === 0 && (
         <div className="mt-10 text-center">
-          <p className="text-lg font-medium">No products found</p>
+          <p className="text-lg font-medium">{t("shop.noProductsFound")}</p>
           <p className="text-muted-foreground mt-1">
-            {search ? "Try a different search term" : "Check back later for new products"}
+            {search ? t("shop.tryDifferentSearch") : t("shop.checkBackLater")}
           </p>
         </div>
       )}
@@ -358,7 +360,7 @@ const fetchProducts = async () => {
             size="sm"
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Prev
+            {t("shop.pagination.prev")}
           </Button>
           
           <div className="flex items-center mx-2">
@@ -372,12 +374,16 @@ const fetchProducts = async () => {
             className="ml-2"
             size="sm"
           >
-            Next
+            {t("shop.pagination.next")}
             <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
           
           <div className="w-full text-center mt-3 text-sm text-muted-foreground">
-            Showing {indexOfFirstProduct + 1}-{Math.min(indexOfLastProduct, filteredProducts.length)} of {filteredProducts.length} products
+            {t("shop.pagination.showing", { 
+              from: indexOfFirstProduct + 1, 
+              to: Math.min(indexOfLastProduct, filteredProducts.length), 
+              total: filteredProducts.length 
+            })}
           </div>
         </div>
       )}

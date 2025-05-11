@@ -2,7 +2,6 @@ import type React from "react"
 import UserHeader from "@/components/layout/user-header"
 import UserFooter from "@/components/layout/user-footer"
 import { ChatBot } from "@/components/chatbot/chat-bot"
-
 export default function UserLayout({
   children,
 }: {

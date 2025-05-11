@@ -13,10 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
-
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1"
+import { useTranslation } from "@/lib/i18n/client"
 
 export default function OrderHistoryPage() {
+  const { t } = useTranslation()
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL 
+
   const router = useRouter()
   const [openOrders, setOpenOrders] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -24,112 +26,118 @@ export default function OrderHistoryPage() {
   const [dateFilter, setDateFilter] = useState("all")
   const [orders, setOrders] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [userId, setUserId] = useState<string>("")
+  const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   
   // Function to toggle order details open/closed
   const toggleOrder = (orderId: string) => {
     setOpenOrders((prev) => (prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]))
   }
-
-  // Get user ID from local storage
-  useEffect(() => {
+  
+  // Function to retrieve the user ID from localStorage
+  const getUserIdFromLocalStorage = () => {
     try {
-      const storedUserId = localStorage.getItem("userId")
-      if (storedUserId) {
-        setUserId(storedUserId)
-        console.log("User ID from localStorage:", storedUserId)
-      } else {
-        console.log("No user ID found in localStorage")
-        toast.error("Please log in to view your orders", {
-          action: {
-            label: "Login",
-            onClick: () => router.push("/login")
-          }
-        })
-      }
+      const storedUserId = localStorage.getItem("userId") || ""
+      return storedUserId
     } catch (err) {
       console.error("Error accessing localStorage:", err)
+      return ""
     }
-  }, [router])
-
-  // Fetch orders when userId is available
-  useEffect(() => {
-    const fetchOrders = async () => {
-      if (!userId) {
-        setIsLoading(false)
-        return
-      }
-
-      try {
-        setIsLoading(true)
-        const token = localStorage.getItem("token")
-        
-        // First attempt to get orders using the userId endpoint
-        let response = await fetch(`${baseUrl}/order/find/${userId}`, {
-          headers: {
-            "Authorization": token ? `Bearer ${token}` : ""
-          }
-        })
-
-        // If the endpoint returns a single order or 404, try the alternative approach
-        if (!response.ok || response.status === 404) {
-          console.log("Single order endpoint failed or returned 404, trying findAll with filtering...")
-          
-          // Fallback: Get all orders and filter by userId
-          response = await fetch(`${baseUrl}/order/findAll`, {
-            headers: {
-              "Authorization": token ? `Bearer ${token}` : ""
-            }
-          })
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch orders: ${response.status}`)
-          }
-          
-          const allOrders = await response.json()
-          console.log("All orders fetched, filtering for current user:", allOrders)
-          
-          // Filter orders for the current user
-          const userOrders = Array.isArray(allOrders) 
-            ? allOrders.filter(order => order.userId === userId)
-            : []
-            
-          setOrders(userOrders)
-          console.log("Filtered user orders:", userOrders)
-        } else {
-          // If the endpoint returns successfully
-          const data = await response.json()
-          console.log("Orders data:", data)
-          
-          // Handle both array and single object responses
-          if (Array.isArray(data)) {
-            setOrders(data)
-          } else if (data && typeof data === 'object') {
-            // Check if this is a single order object
-            if (data._id || data.id) {
-              setOrders([data])
-            } else if (data.orders && Array.isArray(data.orders)) {
-              setOrders(data.orders)
-            } else {
-              console.warn("Unexpected response format:", data)
-              setOrders([])
-            }
-          } else {
-            console.warn("Unexpected response type:", typeof data)
-            setOrders([])
-          }
+  }
+  
+  // Function to retrieve the auth token from localStorage
+  const getAuthToken = () => {
+    try {
+      return localStorage.getItem("token") || ""
+    } catch (err) {
+      console.error("Error accessing localStorage:", err)
+      return ""
+    }
+  }
+  
+  // Fetch orders from the API
+  const fetchOrders = async () => {
+    setIsLoading(true)
+    setError(null)
+    
+    const userId = getUserIdFromLocalStorage()
+    const token = getAuthToken()
+    
+    if (!userId) {
+      setError("User ID not found. Please log in again.")
+      setIsLoading(false)
+      return
+    }
+    
+    if (!token) {
+      setError("Authentication token not found. Please log in again.")
+      setIsLoading(false)
+      return
+    }
+    
+    try {
+      // Determine date filter parameters
+      let startDate = undefined
+      if (dateFilter !== "all") {
+        const now = new Date()
+        if (dateFilter === "last30") {
+          startDate = new Date(now.setDate(now.getDate() - 30)).toISOString().split('T')[0]
+        } else if (dateFilter === "last90") {
+          startDate = new Date(now.setDate(now.getDate() - 90)).toISOString().split('T')[0]
+        } else if (dateFilter === "last365") {
+          startDate = new Date(now.setDate(now.getDate() - 365)).toISOString().split('T')[0]
         }
-      } catch (error) {
-        console.error("Error fetching orders:", error)
-        toast.error("Failed to load your orders")
-        setOrders([])
-      } finally {
-        setIsLoading(false)
       }
+      
+      // Build query parameters
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: "10"
+      })
+      
+      if (statusFilter !== "all") {
+        queryParams.append("status", statusFilter)
+      }
+      
+      if (startDate) {
+        queryParams.append("startDate", startDate)
+      }
+      
+      // Make the API request
+      const response = await fetch(`${baseUrl}/order/user/${userId}`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching orders: ${response.status} ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setOrders(data.data)
+        setTotalPages(data.pages || 1)
+      } else {
+        throw new Error(data.message || "Failed to fetch orders")
+      }
+    } catch (err: any) {
+      console.error("Error fetching orders:", err)
+      setError(err.message || "Failed to load your orders. Please try again.")
+      toast.error(t("orders.couldNotLoad"))
+    } finally {
+      setIsLoading(false)
     }
+  }
 
+  // Fetch orders when component mounts or filters change
+  useEffect(() => {
     fetchOrders()
-  }, [userId])
+  }, [statusFilter, dateFilter, page])
 
   // Format date function
   const formatDate = (dateString: string) => {
@@ -178,102 +186,72 @@ export default function OrderHistoryPage() {
       case "pending":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
       case "canceled":
+      case "cancelled":
         return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"
     }
   }
 
-  // Apply filters to orders
+  // Apply search filter to orders
   const filteredOrders = orders.filter((order) => {
     // Search by order number or product names
-    const matchesSearch =
-      searchQuery === "" ||
+    return searchQuery === "" ||
       (order.orderNumber || order._id || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (order.products && Array.isArray(order.products) && order.products.some(
         (product: any) => (product.title || "").toLowerCase().includes(searchQuery.toLowerCase())
       ))
-
-    // Filter by status
-    const matchesStatus = 
-      statusFilter === "all" || 
-      order.status?.toLowerCase() === statusFilter.toLowerCase()
-
-    // Filter by date (simplified - actual implementation would parse dates)
-    let matchesDate = true
-    if (dateFilter !== "all" && order.createdAt) {
-      const orderDate = new Date(order.createdAt)
-      const now = new Date()
-      const daysAgo = (now.getTime() - orderDate.getTime()) / (1000 * 3600 * 24)
-      
-      if (dateFilter === "last30" && daysAgo > 30) matchesDate = false
-      else if (dateFilter === "last90" && daysAgo > 90) matchesDate = false
-      else if (dateFilter === "last365" && daysAgo > 365) matchesDate = false
-    }
-
-    return matchesSearch && matchesStatus && matchesDate
   })
 
-  // Handle reordering an item
+  // Handle reordering an item (mocked)
   const handleReorder = async (order: any) => {
-    if (!userId) {
-      toast.error("Please log in to reorder")
-      return
-    }
-
-    toast.info("Adding items to your cart...")
+    toast.info(t("orders.addingToCart"));
     
-    try {
-      const token = localStorage.getItem("token")
-      
-      // Extract products from the order
-      const products = order.products?.map((product: any) => ({
-        productId: product.productId,
-        quantity: product.quantity || 1
-      }))
-      
-      if (!products || products.length === 0) {
-        toast.error("No products found in this order")
-        return
-      }
-      
-      // Add products to cart
-      const response = await fetch(`${baseUrl}/cart/add`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": token ? `Bearer ${token}` : ""
-        },
-        body: JSON.stringify({
-          userId: userId,
-          products: products
-        })
-      })
-      
-      if (!response.ok) {
-        throw new Error("Failed to add items to cart")
-      }
-      
-      toast.success("Items added to your cart", {
+    // Simulate a delay for reordering
+    setTimeout(() => {
+      toast.success(t("orders.itemsAddedToCart"), {
         action: {
-          label: "View Cart",
+          label: t("cart.viewCart"),
           onClick: () => router.push("/cart")
         }
-      })
-      
-    } catch (error) {
-      console.error("Error reordering:", error)
-      toast.error("Failed to add items to cart")
+      });
+    }, 800);
+  }
+  
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage)
+      // Scroll to top when changing pages
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
-  if (isLoading) {
+  // Show loading state
+  if (isLoading && page === 1) {
     return (
       <div className="container py-8">
-        <h1 className="text-3xl font-bold mb-8">Order History</h1>
+        <h1 className="text-3xl font-bold mb-8">{t("orders.title")}</h1>
         <div className="flex flex-col items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
-          <p>Loading your orders...</p>
+          <p>{t("orders.loading")}</p>
+        </div>
+      </div>
+    )
+  }
+  
+  // Show error state
+  if (error && !isLoading) {
+    return (
+      <div className="container py-8">
+        <h1 className="text-3xl font-bold mb-8">{t("orders.title")}</h1>
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="rounded-full bg-red-100 p-6 mb-4">
+            <Package className="h-10 w-10 text-red-600" />
+          </div>
+          <h2 className="text-xl font-medium mb-2">{t("orders.couldNotLoad")}</h2>
+          <p className="text-muted-foreground text-center max-w-md mb-6">{error}</p>
+          <Button onClick={() => fetchOrders()}>{t("common.tryAgain")}</Button>
         </div>
       </div>
     )
@@ -283,16 +261,16 @@ export default function OrderHistoryPage() {
     <div className="container py-8">
       <div className="flex items-center gap-2 mb-6">
         <Link href="/" className="text-muted-foreground hover:text-foreground">
-          Home
+          {t("common.home")}
         </Link>
         <span className="text-muted-foreground">/</span>
-        <span>Order History</span>
+        <span>{t("orders.title")}</span>
       </div>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Order History</h1>
-          <p className="text-muted-foreground mt-1">View and manage your past orders</p>
+          <h1 className="text-3xl font-bold">{t("orders.title")}</h1>
+          <p className="text-muted-foreground mt-1">{t("orders.description")}</p>
         </div>
       </div>
 
@@ -300,39 +278,52 @@ export default function OrderHistoryPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search orders..."
+            placeholder={t("orders.searchPlaceholder")}
             className="pl-10"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(value) => {
+          setStatusFilter(value)
+          setPage(1) // Reset to first page when changing filter
+        }}>
           <SelectTrigger>
-            <SelectValue placeholder="Filter by status" />
+            <SelectValue placeholder={t("orders.filterByStatus")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="delivered">Delivered</SelectItem>
-            <SelectItem value="shipped">Shipped</SelectItem>
-            <SelectItem value="processing">Processing</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="canceled">Canceled</SelectItem>
+            <SelectItem value="all">{t("orders.allStatuses")}</SelectItem>
+            <SelectItem value="delivered">{t("orders.statuses.delivered")}</SelectItem>
+            <SelectItem value="shipped">{t("orders.statuses.shipped")}</SelectItem>
+            <SelectItem value="processing">{t("orders.statuses.processing")}</SelectItem>
+            <SelectItem value="pending">{t("orders.statuses.pending")}</SelectItem>
+            <SelectItem value="cancelled">{t("orders.statuses.cancelled")}</SelectItem>
           </SelectContent>
         </Select>
 
-        <Select value={dateFilter} onValueChange={setDateFilter}>
+        <Select value={dateFilter} onValueChange={(value) => {
+          setDateFilter(value)
+          setPage(1) // Reset to first page when changing filter
+        }}>
           <SelectTrigger>
-            <SelectValue placeholder="Filter by date" />
+            <SelectValue placeholder={t("orders.filterByDate")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Time</SelectItem>
-            <SelectItem value="last30">Last 30 Days</SelectItem>
-            <SelectItem value="last90">Last 90 Days</SelectItem>
-            <SelectItem value="last365">Last Year</SelectItem>
+            <SelectItem value="all">{t("orders.allTime")}</SelectItem>
+            <SelectItem value="last30">{t("orders.last30Days")}</SelectItem>
+            <SelectItem value="last90">{t("orders.last90Days")}</SelectItem>
+            <SelectItem value="last365">{t("orders.lastYear")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {/* Show loading indicator when changing page */}
+      {isLoading && page > 1 && (
+        <div className="flex justify-center py-4">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      )}
 
       <div className="space-y-6">
         {filteredOrders.length === 0 ? (
@@ -340,14 +331,14 @@ export default function OrderHistoryPage() {
             <div className="rounded-full bg-muted p-6 mb-4">
               <Package className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h2 className="text-xl font-medium mb-2">No orders found</h2>
+            <h2 className="text-xl font-medium mb-2">{t("orders.noOrdersFound")}</h2>
             <p className="text-muted-foreground max-w-md mb-6">
               {searchQuery || statusFilter !== "all" || dateFilter !== "all"
-                ? "Try adjusting your filters to find what you're looking for."
-                : "You haven't placed any orders yet. Start shopping to see your orders here."}
+                ? t("orders.adjustFilters")
+                : t("orders.noOrdersYet")}
             </p>
             <Button asChild>
-              <Link href="/shop">Start Shopping</Link>
+              <Link href="/shop">{t("orders.startShopping")}</Link>
             </Button>
           </div>
         ) : (
@@ -364,7 +355,9 @@ export default function OrderHistoryPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-medium">{order.orderNumber || order._id}</h3>
-                        <Badge className={getStatusColor(order.status)}>{order.status || "Unknown"}</Badge>
+                        <Badge className={getStatusColor(order.status)}>
+                          {t(`orders.statuses.${order.status?.toLowerCase() || 'pending'}`)}
+                        </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1 flex items-center">
                         <CalendarIcon className="h-3.5 w-3.5 mr-1" />
@@ -376,7 +369,7 @@ export default function OrderHistoryPage() {
                         {formatCurrency(order.amount || order.total || 0)}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {order.paymentMethod || "Online Payment"}
+                        {order.paymentMethod || t("orders.onlinePayment")}
                       </p>
                     </div>
                   </div>
@@ -386,7 +379,7 @@ export default function OrderHistoryPage() {
                       <div key={`${order._id}-product-${index}`} className="relative w-16 h-16 rounded-md overflow-hidden border">
                         <Image 
                           src={product.img || "/placeholder.svg"} 
-                          alt={product.title || "Product"} 
+                          alt={product.title || t("product.defaultCategory")} 
                           fill 
                           className="object-cover" 
                         />
@@ -404,12 +397,12 @@ export default function OrderHistoryPage() {
                       <Button variant="ghost" size="sm" className="gap-1">
                         {openOrders.includes(order._id || order.id) ? (
                           <>
-                            Hide Details
+                            {t("orders.hideDetails")}
                             <ChevronUp className="h-4 w-4" />
                           </>
                         ) : (
                           <>
-                            View Details
+                            {t("orders.viewDetails")}
                             <ChevronDown className="h-4 w-4" />
                           </>
                         )}
@@ -421,7 +414,7 @@ export default function OrderHistoryPage() {
                       onClick={() => handleReorder(order)}
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
-                      Reorder
+                      {t("orders.reorder")}
                     </Button>
                   </div>
                 </CardContent>
@@ -429,23 +422,23 @@ export default function OrderHistoryPage() {
                 <CollapsibleContent>
                   <Separator />
                   <CardContent className="p-4 pt-4">
-                    <h4 className="font-medium mb-3">Order Items</h4>
+                    <h4 className="font-medium mb-3">{t("orders.orderItems")}</h4>
                     <div className="space-y-4">
                       {order.products && Array.isArray(order.products) && order.products.map((product: any, index: number) => (
                         <div key={`${order._id}-product-detail-${index}`} className="flex gap-4">
                           <div className="relative w-16 h-16 rounded-md overflow-hidden border flex-shrink-0">
                             <Image
                               src={product.img || "/placeholder.svg"}
-                              alt={product.title || "Product"}
+                              alt={product.title || t("product.defaultCategory")}
                               fill
                               className="object-cover"
                             />
                           </div>
                           <div className="flex-1">
-                            <h5 className="font-medium">{product.title || "Product"}</h5>
+                            <h5 className="font-medium">{product.title || t("product.defaultCategory")}</h5>
                             <div className="flex justify-between mt-1">
                               <p className="text-sm text-muted-foreground">
-                                Qty: {product.quantity || 1}
+                                {t("orders.quantity")}: {product.quantity || 1}
                                 {product.color && ` • ${product.color}`}
                                 {product.size && ` • ${product.size}`}
                               </p>
@@ -458,33 +451,33 @@ export default function OrderHistoryPage() {
 
                     {/* Order Summary */}
                     <div className="mt-6 bg-muted/30 p-4 rounded-md">
-                      <h4 className="font-medium mb-2">Order Summary</h4>
+                      <h4 className="font-medium mb-2">{t("orders.orderSummary")}</h4>
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Subtotal:</span>
+                          <span className="text-muted-foreground">{t("orders.subtotal")}:</span>
                           <span>{formatCurrency(order.subtotal || 0)}</span>
                         </div>
                         {(order.tax > 0 || order.tax === 0) && (
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Tax:</span>
+                            <span className="text-muted-foreground">{t("orders.tax")}:</span>
                             <span>{formatCurrency(order.tax)}</span>
                           </div>
                         )}
                         {(order.shippingCost !== undefined) && (
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Shipping:</span>
-                            <span>{order.shippingCost === 0 ? "Free" : formatCurrency(order.shippingCost)}</span>
+                            <span className="text-muted-foreground">{t("orders.shipping")}:</span>
+                            <span>{order.shippingCost === 0 ? t("orders.free") : formatCurrency(order.shippingCost)}</span>
                           </div>
                         )}
                         {(order.discount > 0) && (
                           <div className="flex justify-between text-green-600">
-                            <span>Discount:</span>
+                            <span>{t("orders.discount")}:</span>
                             <span>-{formatCurrency(order.discount)}</span>
                           </div>
                         )}
                         <Separator className="my-2" />
                         <div className="flex justify-between font-medium">
-                          <span>Total:</span>
+                          <span>{t("orders.total")}:</span>
                           <span>{formatCurrency(order.amount || order.total || 0)}</span>
                         </div>
                       </div>
@@ -493,7 +486,7 @@ export default function OrderHistoryPage() {
                   <Separator />
                   <CardFooter className="p-4 flex flex-col sm:flex-row sm:justify-between gap-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Shipping Address</p>
+                      <p className="text-sm text-muted-foreground">{t("orders.shippingAddress")}</p>
                       <p className="text-sm mt-1">
                         {order.address ? (
                           <>
@@ -504,24 +497,24 @@ export default function OrderHistoryPage() {
                             {order.address.country || ""}
                           </>
                         ) : (
-                          "Address information not available"
+                          t("orders.addressNotAvailable")
                         )}
                       </p>
                     </div>
-                    {order.status !== "Canceled" ? (
+                    {order.status !== "canceled" && order.status !== "cancelled" ? (
                       <div className="flex flex-col items-start sm:items-end">
-                        <p className="text-sm text-muted-foreground">Tracking Number</p>
-                        <p className="text-sm font-medium mt-1">{order.trackingNumber || "Not available yet"}</p>
+                        <p className="text-sm text-muted-foreground">{t("orders.trackingNumber")}</p>
+                        <p className="text-sm font-medium mt-1">{order.trackingNumber || t("orders.trackingNotAvailable")}</p>
                         {order.trackingNumber && (
                           <Button variant="link" size="sm" className="p-0 h-auto mt-1">
-                            Track Order
+                            {t("orders.trackOrder")}
                           </Button>
                         )}
                       </div>
                     ) : (
                       <div className="flex flex-col items-start sm:items-end">
-                        <p className="text-sm text-muted-foreground">Cancellation Reason</p>
-                        <p className="text-sm mt-1">{order.cancellationReason || "No reason provided"}</p>
+                        <p className="text-sm text-muted-foreground">{t("orders.cancellationReason")}</p>
+                        <p className="text-sm mt-1">{order.cancellationReason || t("orders.noReasonProvided")}</p>
                       </div>
                     )}
                   </CardFooter>
@@ -531,6 +524,44 @@ export default function OrderHistoryPage() {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-8">
+          <Button 
+            variant="outline" 
+            size="sm"
+            disabled={page === 1 || isLoading}
+            onClick={() => handlePageChange(page - 1)}
+          >
+            {t("orders.previous")}
+          </Button>
+          
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+              <Button
+                key={pageNum}
+                variant={page === pageNum ? "default" : "outline"}
+                size="sm"
+                className="w-8 h-8 p-0"
+                disabled={isLoading}
+                onClick={() => handlePageChange(pageNum)}
+              >
+                {pageNum}
+              </Button>
+            ))}
+          </div>
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            disabled={page === totalPages || isLoading}
+            onClick={() => handlePageChange(page + 1)}
+          >
+            {t("orders.next")}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

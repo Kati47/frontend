@@ -28,6 +28,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "react-i18next";
 
 interface Product {
   _id: string;
@@ -60,24 +61,24 @@ interface Review {
 // Helper functions
 const formatSizes = (sizes: string) => sizes.split(",").map((s) => s.trim());
 const formatColors = (colors: string) => colors.split(",").map((c) => c.trim());
-const getStockStatus = (product: Product) => {
+const getStockStatus = (product: Product, t: any) => {
   if (!product.inStock) {
     return {
       badge: "destructive",
-      text: "Out of Stock",
+      text: "outOfStock",
       icon: <AlertTriangle className="h-4 w-4" />,
     };
   }
   if (product.quantity <= 5) {
     return {
       badge: "secondary",
-      text: "Low Stock",
+      text: "lowStock",
       icon: <AlertTriangle className="h-4 w-4" />,
     };
   }
   return {
     badge: "default",
-    text: "In Stock",
+    text: "inStock",
     icon: <Check className="h-4 w-4" />,
   };
 };
@@ -181,6 +182,7 @@ export default function ProductDetailPage({
 }: {
   params: { id: string };
 }) {
+  const { t } = useTranslation();
   const productId = "dfads";
   const router = useRouter();
 
@@ -218,30 +220,32 @@ export default function ProductDetailPage({
     setProduct((prev) =>
       prev ? { ...prev, isInCart: true, cartQuantity: quantity } : null
     );
-    toast.success("Added to cart successfully");
+    toast.success(t("product.addedToCart"));
   };
 
   const handleToggleFavorite = () => {
+    const newValue = !product?.isFavorite;
     setProduct((prev) =>
       prev ? { ...prev, isFavorite: !prev.isFavorite } : null
     );
-    toast.success("Updated favorites");
+    toast.success(newValue ? t("product.addToFavorites") : t("product.removeFromFavorites"));
   };
 
   const handleToggleBookmark = () => {
+    const newValue = !product?.isSavedForLater;
     setProduct((prev) =>
       prev ? { ...prev, isSavedForLater: !prev.isSavedForLater } : null
     );
-    toast.success("Updated saved items");
+    toast.success(newValue ? t("product.savedForLater") : t("product.removeFromSaved"));
   };
 
   const handleShare = () => {
-    toast.success("Link copied to clipboard");
+    toast.success(t("product.linkCopied"));
   };
 
   const handleReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Review submitted successfully");
+    toast.success(t("product.reviewSubmitted"));
     setShowReviewForm(false);
   };
 
@@ -254,7 +258,7 @@ export default function ProductDetailPage({
             <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
           <h2 className="text-xl font-medium mb-2">
-            Loading product details...
+            {t("product.loadingDetails")}
           </h2>
         </div>
       </div>
@@ -268,7 +272,7 @@ export default function ProductDetailPage({
         <Button variant="outline" asChild className="mb-6">
           <Link href="/shop">
             <ChevronLeft className="mr-2 h-4 w-4" />
-            Back to Shop
+            {t("common.backToShop")}
           </Link>
         </Button>
 
@@ -276,10 +280,10 @@ export default function ProductDetailPage({
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
             <AlertTriangle className="h-8 w-8 text-red-500" />
           </div>
-          <h2 className="text-xl font-medium mb-2">Error Loading Product</h2>
+          <h2 className="text-xl font-medium mb-2">{t("product.errorLoading")}</h2>
           <p className="text-muted-foreground mb-6">{error}</p>
           <Button asChild>
-            <Link href="/shop">Browse Other Products</Link>
+            <Link href="/shop">{t("product.browseOtherProducts")}</Link>
           </Button>
         </div>
       </div>
@@ -293,7 +297,7 @@ export default function ProductDetailPage({
         <Button variant="outline" asChild className="mb-6">
           <Link href="/shop">
             <ChevronLeft className="mr-2 h-4 w-4" />
-            Back to Shop
+            {t("common.backToShop")}
           </Link>
         </Button>
 
@@ -301,12 +305,12 @@ export default function ProductDetailPage({
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
             <Package className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h2 className="text-xl font-medium mb-2">Product Not Found</h2>
+          <h2 className="text-xl font-medium mb-2">{t("product.notFound")}</h2>
           <p className="text-muted-foreground mb-6">
-            The product you're looking for doesn't exist or has been removed.
+            {t("product.notFoundDescription")}
           </p>
           <Button asChild>
-            <Link href="/shop">Browse Products</Link>
+            <Link href="/shop">{t("product.browseProducts")}</Link>
           </Button>
         </div>
       </div>
@@ -318,20 +322,20 @@ export default function ProductDetailPage({
   const availableColors = formatColors(product.color);
 
   // Get stock status
-  const stockStatus = getStockStatus(product);
+  const stockStatus = getStockStatus(product, t);
 
   return (
     <div className="container py-8">
       <div className="flex items-center gap-2 mb-6">
         <Link href="/" className="text-muted-foreground hover:text-foreground">
-          Home
+          {t("common.home")}
         </Link>
         <span className="text-muted-foreground">/</span>
         <Link
           href="/shop"
           className="text-muted-foreground hover:text-foreground"
         >
-          Shop
+          {t("common.shop")}
         </Link>
         <span className="text-muted-foreground">/</span>
         <span className="truncate max-w-[200px]">{product.title}</span>
@@ -342,9 +346,9 @@ export default function ProductDetailPage({
         <div>
           <Tabs defaultValue="image" className="w-full">
             <TabsList className="mb-4">
-              <TabsTrigger value="image">Images</TabsTrigger>
+              <TabsTrigger value="image">{t("product.images")}</TabsTrigger>
               {product.model3d && product.model3d.modelId && (
-                <TabsTrigger value="3d">3D Model</TabsTrigger>
+                <TabsTrigger value="3d">{t("product.3dModel")}</TabsTrigger>
               )}
             </TabsList>
 
@@ -373,8 +377,7 @@ export default function ProductDetailPage({
                 </div>
                 <div className="mt-2 text-sm text-muted-foreground">
                   <p>
-                    Interactive 3D model - click and drag to rotate, scroll to
-                    zoom
+                    {t("product.interactive3dModelInstructions")}
                   </p>
                 </div>
               </TabsContent>
@@ -399,9 +402,9 @@ export default function ProductDetailPage({
                   />
                 ))}
                 <span className="ml-2 text-sm text-muted-foreground">
-                  {product.averageRating?.toFixed(1) || "No ratings"}
+                  {product.averageRating?.toFixed(1) || t("product.noRatings")}
                   {product.reviewCount
-                    ? ` (${product.reviewCount} reviews)`
+                    ? ` (${product.reviewCount} ${product.reviewCount === 1 ? t("product.review") : t("product.reviews")})`
                     : ""}
                 </span>
               </div>
@@ -410,7 +413,7 @@ export default function ProductDetailPage({
 
           <div>
             <p className="text-2xl font-semibold">
-              ${product.price.toFixed(2)}
+              {t("common.price", { price: product.price.toFixed(2) })}
             </p>
           </div>
 
@@ -431,7 +434,7 @@ export default function ProductDetailPage({
               >
                 <span className="flex items-center gap-1">
                   {stockStatus.icon}
-                  {stockStatus.text}
+                  {t(`product.${stockStatus.text}`)}
                 </span>
               </Badge>
 
@@ -454,7 +457,7 @@ export default function ProductDetailPage({
             <div className="space-y-4">
               <div>
                 <Label htmlFor="size" className="text-base">
-                  Size
+                  {t("product.size")}
                 </Label>
                 <RadioGroup
                   id="size"
@@ -493,7 +496,7 @@ export default function ProductDetailPage({
             <div className="space-y-4">
               <div>
                 <Label htmlFor="color" className="text-base">
-                  Color
+                  {t("product.color")}
                 </Label>
                 <RadioGroup
                   id="color"
@@ -530,7 +533,7 @@ export default function ProductDetailPage({
           {/* Quantity Selector */}
           <div>
             <Label htmlFor="quantity" className="text-base">
-              Quantity
+              {t("product.quantity")}
             </Label>
             <div className="flex items-center mt-2">
               <Button
@@ -541,7 +544,7 @@ export default function ProductDetailPage({
                 disabled={quantity <= 1}
               >
                 <Minus className="h-4 w-4" />
-                <span className="sr-only">Decrease</span>
+                <span className="sr-only">{t("product.decrease")}</span>
               </Button>
               <Input
                 id="quantity"
@@ -569,11 +572,11 @@ export default function ProductDetailPage({
                 disabled={quantity >= product.quantity}
               >
                 <Plus className="h-4 w-4" />
-                <span className="sr-only">Increase</span>
+                <span className="sr-only">{t("product.increase")}</span>
               </Button>
 
               <span className="ml-2 text-sm text-muted-foreground">
-                {product.quantity} available
+                {t("product.available", { count: product.quantity })}
               </span>
             </div>
           </div>
@@ -587,17 +590,17 @@ export default function ProductDetailPage({
               {isAddingToCart ? (
                 <span className="flex items-center gap-2">
                   <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Adding...
+                  {t("product.adding")}
                 </span>
               ) : product.isInCart ? (
                 <span className="flex items-center gap-2">
                   <Check className="h-4 w-4" />
-                  Added to Cart
+                  {t("product.inCart")}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <ShoppingCart className="h-4 w-4" />
-                  Add to Cart
+                  {t("product.addToCart")}
                 </span>
               )}
             </Button>
@@ -621,8 +624,8 @@ export default function ProductDetailPage({
                 )}
                 <span className="sr-only">
                   {product.isFavorite
-                    ? "Remove from Favorites"
-                    : "Add to Favorites"}
+                    ? t("product.removeFromFavorites")
+                    : t("product.addToFavorites")}
                 </span>
               </Button>
 
@@ -644,14 +647,14 @@ export default function ProductDetailPage({
                 )}
                 <span className="sr-only">
                   {product.isSavedForLater
-                    ? "Remove from Saved"
-                    : "Save for Later"}
+                    ? t("product.removeFromSaved")
+                    : t("product.savedForLater")}
                 </span>
               </Button>
 
               <Button variant="outline" size="icon" onClick={handleShare}>
                 <Share2 className="h-4 w-4" />
-                <span className="sr-only">Share</span>
+                <span className="sr-only">{t("product.share")}</span>
               </Button>
             </div>
           </div>
@@ -662,9 +665,9 @@ export default function ProductDetailPage({
       <div className="mt-12">
         <Tabs defaultValue="description" className="w-full">
           <TabsList>
-            <TabsTrigger value="description">Description</TabsTrigger>
+            <TabsTrigger value="description">{t("product.description")}</TabsTrigger>
             <TabsTrigger value="reviews">
-              Reviews {product.reviewCount ? `(${product.reviewCount})` : ""}
+              {t("product.reviews")} {product.reviewCount ? `(${product.reviewCount})` : ""}
             </TabsTrigger>
           </TabsList>
 
@@ -696,8 +699,10 @@ export default function ProductDetailPage({
                       ))}
                     </div>
                     <p className="text-muted-foreground">
-                      Based on {product.reviewCount || 0}{" "}
-                      {product.reviewCount === 1 ? "review" : "reviews"}
+                      {t("product.basedOnReviews", { 
+                        count: product.reviewCount || 0,
+                        reviewText: product.reviewCount === 1 ? t("product.review") : t("product.reviews")
+                      })}
                     </p>
                   </div>
                 </div>
@@ -709,7 +714,7 @@ export default function ProductDetailPage({
                         <Card>
                           <CardHeader>
                             <h3 className="text-lg font-semibold">
-                              Write a Review
+                              {t("product.writeReview")}
                             </h3>
                           </CardHeader>
                           <CardContent>
@@ -718,7 +723,7 @@ export default function ProductDetailPage({
                               className="space-y-4"
                             >
                               <div>
-                                <Label htmlFor="rating">Rating</Label>
+                                <Label htmlFor="rating">{t("product.rating")}</Label>
                                 <RadioGroup
                                   id="rating"
                                   className="flex gap-2 mt-2"
@@ -755,7 +760,7 @@ export default function ProductDetailPage({
                               </div>
 
                               <div>
-                                <Label htmlFor="title">Title</Label>
+                                <Label htmlFor="title">{t("product.reviewTitle")}</Label>
                                 <Input
                                   id="title"
                                   value={newReview.title}
@@ -765,12 +770,12 @@ export default function ProductDetailPage({
                                       title: e.target.value,
                                     })
                                   }
-                                  placeholder="Summarize your review"
+                                  placeholder={t("product.summarizeReview")}
                                 />
                               </div>
 
                               <div>
-                                <Label htmlFor="comment">Review</Label>
+                                <Label htmlFor="comment">{t("product.reviewComment")}</Label>
                                 <Textarea
                                   id="comment"
                                   value={newReview.comment}
@@ -780,7 +785,7 @@ export default function ProductDetailPage({
                                       comment: e.target.value,
                                     })
                                   }
-                                  placeholder="Write your review here"
+                                  placeholder={t("product.writeReviewHere")}
                                   rows={4}
                                   required
                                 />
@@ -792,9 +797,9 @@ export default function ProductDetailPage({
                                   variant="outline"
                                   onClick={() => setShowReviewForm(false)}
                                 >
-                                  Cancel
+                                  {t("common.cancel")}
                                 </Button>
-                                <Button type="submit">Submit Review</Button>
+                                <Button type="submit">{t("common.submit")}</Button>
                               </div>
                             </form>
                           </CardContent>
@@ -802,10 +807,10 @@ export default function ProductDetailPage({
                       ) : (
                         <div className="text-center p-6 border rounded-lg">
                           <h3 className="font-medium mb-2">
-                            Share your thoughts about this product
+                            {t("product.shareThoughts")}
                           </h3>
                           <Button onClick={() => setShowReviewForm(true)}>
-                            Write a Review
+                            {t("product.writeReview")}
                           </Button>
                         </div>
                       )}
@@ -818,12 +823,12 @@ export default function ProductDetailPage({
 
               {/* Reviews List */}
               <div className="space-y-6">
-                <h3 className="text-lg font-semibold">Customer Reviews</h3>
+                <h3 className="text-lg font-semibold">{t("product.customerReviews")}</h3>
 
                 {reviews.length === 0 ? (
                   <div className="text-center p-8">
                     <p className="text-muted-foreground">
-                      No reviews yet. Be the first to review this product.
+                      {t("product.noReviewsYet")}
                     </p>
                   </div>
                 ) : (
@@ -839,7 +844,7 @@ export default function ProductDetailPage({
                           </Avatar>
                           <div>
                             <p className="font-medium">
-                              {review.username || "Anonymous"}
+                              {review.username || t("product.anonymousUser")}
                             </p>
                             <p className="text-sm text-muted-foreground">
                               {new Date(

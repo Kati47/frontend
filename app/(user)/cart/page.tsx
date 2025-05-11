@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, ChevronDown, ChevronUp, Gift, Percent, 
-         Tag, Clock, Bookmark, BookmarkCheck, ArrowUpDown, ShoppingCart } from "lucide-react"
+import {
+  Trash2, Plus, Minus, ShoppingBag, ArrowRight, ChevronDown, ChevronUp, Gift, Percent,
+  Tag, Clock, Bookmark, BookmarkCheck, ArrowUpDown, ShoppingCart
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,11 +15,14 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { useTranslation } from "@/lib/i18n/client"
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1"
 
 export default function CartPage() {
   const router = useRouter()
+  const { t } = useTranslation()
+
   const [cartItems, setCartItems] = useState<any[]>([])
   const [cartId, setCartId] = useState<string>("")
   const [promoCode, setPromoCode] = useState("")
@@ -31,7 +36,7 @@ export default function CartPage() {
   const [loadingItemDetails, setLoadingItemDetails] = useState(false)
   const [availablePromoCodes, setAvailablePromoCodes] = useState<any[]>([])
   const [loadingPromoCodes, setLoadingPromoCodes] = useState(false)
-  
+
   // Save for Later states
   const [savedForLaterItems, setSavedForLaterItems] = useState<any[]>([])
   const [loadingSavedItems, setLoadingSavedItems] = useState(false)
@@ -58,24 +63,24 @@ export default function CartPage() {
 
     // Check if user is logged in
     if (!storedUserId) {
-      toast.error("Please log in to view your cart", {
+      toast.error(t("cart.errors.loginRequired"), {
         action: {
-          label: "Login",
+          label: t("common.login"),
           onClick: () => router.push("/login")
         }
       })
     }
-  }, [router])
+  }, [router, t])
 
   // Fetch saved for later items
   const fetchSavedForLaterItems = async () => {
     if (!userId) return
-    
+
     setLoadingSavedItems(true)
     try {
       const token = localStorage.getItem("token")
       const response = await fetch(
-        `${baseUrl}/products/savedforlater/${userId}`, 
+        `${baseUrl}/products/savedforlater/${userId}`,
         {
           headers: {
             "Authorization": token ? `Bearer ${token}` : ""
@@ -89,7 +94,7 @@ export default function CartPage() {
 
       const data = await response.json()
       console.log("Saved for later data:", data)
-      
+
       // Format saved items similar to cart items for consistent rendering
       const formattedItems = (data.products || []).map((product: any) => ({
         id: product._id,
@@ -102,7 +107,7 @@ export default function CartPage() {
         savedAt: product.savedAt || new Date().toISOString(),
         fromCart: product.fromCart || false
       }))
-      
+
       setSavedForLaterItems(formattedItems)
       setSavedForLaterTotal(data.totalProducts || 0)
     } catch (error) {
@@ -129,7 +134,7 @@ export default function CartPage() {
 
       const data = await response.json()
       console.log("Available promo codes:", data)
-      
+
       if (data.promoCodes && Array.isArray(data.promoCodes)) {
         setAvailablePromoCodes(data.promoCodes)
       }
@@ -167,7 +172,7 @@ export default function CartPage() {
       const productInfo = data.product || data
 
       // Cache the result for future use
-      const newCache = {...productDetailsCache}
+      const newCache = { ...productDetailsCache }
       newCache[productId] = productInfo
       setProductDetailsCache(newCache)
 
@@ -189,10 +194,10 @@ export default function CartPage() {
 
     try {
       console.log(`Fetching cart items for user ID: ${userId}`)
-      
+
       // Get token for authorization
       const token = localStorage.getItem("token")
-      
+
       const response = await fetch(`${baseUrl}/cart/find/${userId}`, {
         headers: {
           "Authorization": token ? `Bearer ${token}` : ""
@@ -203,7 +208,7 @@ export default function CartPage() {
       if (!response.ok) {
         const errorText = await response.text()
         console.log("Response body:", errorText)
-        
+
         if (response.status === 404 || errorText.includes("Cart not found")) {
           console.log("Cart not found - This is normal for new users")
           setIsCartNotFound(true)
@@ -244,12 +249,12 @@ export default function CartPage() {
 
       // Handle different possible API response structures
       let extractedItems: any[] = []
-      
+
       // Case 1: { cart: { products: [...] } }
       if (data?.cart?.products && Array.isArray(data.cart.products)) {
         extractedItems = data.cart.products
         console.log("Found products in cart.products:", extractedItems.length)
-      } 
+      }
       // Case 2: { products: [...] }
       else if (data?.products && Array.isArray(data.products)) {
         extractedItems = data.products
@@ -265,15 +270,15 @@ export default function CartPage() {
         extractedItems = data
         console.log("Response is an array directly:", extractedItems.length)
       }
-      
+
       if (extractedItems.length > 0) {
         console.log("Cart items raw data:", extractedItems)
-        
+
         // Identify items that need product details
-        const itemsNeedingDetails = extractedItems.filter(item => 
+        const itemsNeedingDetails = extractedItems.filter(item =>
           item.productId && (!item.title || item.price === undefined)
         )
-        
+
         if (itemsNeedingDetails.length > 0) {
           setLoadingItemDetails(true)
           console.log(`Need to fetch details for ${itemsNeedingDetails.length} products`)
@@ -294,7 +299,7 @@ export default function CartPage() {
               description: item.product.desc || ""
             }
           }
-          
+
           // For items with complete data
           if (item.title && item.price !== undefined) {
             return {
@@ -308,7 +313,7 @@ export default function CartPage() {
               description: item.desc || ""
             }
           }
-          
+
           // For minimal items, use placeholder until we fetch details
           return {
             id: item.productId,
@@ -322,23 +327,23 @@ export default function CartPage() {
             loading: true
           }
         })
-        
+
         // Set initial cart items
         setCartItems(initialFormattedItems)
         setIsCartNotFound(false)
-        
+
         // Fetch details for incomplete items
         if (itemsNeedingDetails.length > 0) {
           const updatedItems = [...initialFormattedItems]
-          
+
           for (let i = 0; i < itemsNeedingDetails.length; i++) {
             const incompleteItem = itemsNeedingDetails[i]
             const itemIndex = extractedItems.findIndex(item => item.productId === incompleteItem.productId)
-            
+
             if (itemIndex !== -1) {
               try {
                 const productDetails = await fetchProductDetails(incompleteItem.productId)
-                
+
                 if (productDetails) {
                   updatedItems[itemIndex] = {
                     id: incompleteItem.productId,
@@ -357,7 +362,7 @@ export default function CartPage() {
               }
             }
           }
-          
+
           setCartItems(updatedItems)
           setLoadingItemDetails(false)
         }
@@ -378,44 +383,44 @@ export default function CartPage() {
   // Function to update item quantity
   const updateItemQuantity = async (productId: string, newQuantity: number) => {
     if (!userId || !cartId) return
-    
+
     try {
       // Optimistically update UI
-      setCartItems(prevItems => 
-        prevItems.map(item => 
-          item.id === productId ? {...item, quantity: newQuantity} : item
+      setCartItems(prevItems =>
+        prevItems.map(item =>
+          item.id === productId ? { ...item, quantity: newQuantity } : item
         )
       )
-      
+
       console.log(`Updating quantity for product ${productId} to ${newQuantity}`)
-      
+
       // Get token for authorization
       const token = localStorage.getItem("token")
-      
+
       // Get current products from the server to ensure we have the complete list
       const cartResponse = await fetch(`${baseUrl}/cart/find/${userId}`, {
         headers: {
           "Authorization": token ? `Bearer ${token}` : ""
         }
       })
-      
+
       if (!cartResponse.ok) {
         throw new Error("Failed to get cart information")
       }
-      
+
       const cartData = await cartResponse.json()
-      
+
       // Get current products
       const currentProducts = cartData.cart?.products || cartData.products || []
-      
+
       // Update the quantity for this product
-      const updatedProducts = currentProducts.map((prod: { productId: string; quantity: number; [key: string]: any }) => {
+      const updatedProducts = currentProducts.map((prod: { productId: string; quantity: number;[key: string]: any }) => {
         if (prod.productId === productId) {
-          return {...prod, quantity: newQuantity}
+          return { ...prod, quantity: newQuantity }
         }
         return prod
       })
-      
+
       // Send update to server
       const updateResponse = await fetch(`${baseUrl}/cart/update/${cartId}`, {
         method: "PUT",
@@ -427,13 +432,13 @@ export default function CartPage() {
           products: updatedProducts
         })
       })
-      
+
       if (!updateResponse.ok) {
         throw new Error("Failed to update cart")
       }
-      
+
       toast.success("Quantity updated")
-      
+
     } catch (error) {
       console.error("Error updating quantity:", error)
       toast.error("Failed to update quantity")
@@ -444,33 +449,33 @@ export default function CartPage() {
   // Remove item from cart
   const removeItem = async (productId: string) => {
     if (!userId || !cartId) return
-    
+
     try {
       // Remove item from local state immediately for responsive UI
       setCartItems(prevItems => prevItems.filter(item => item.id !== productId))
-      
+
       // Get token for authorization
       const token = localStorage.getItem("token")
-      
+
       // Get current products from the server to ensure we have the complete list
       const cartResponse = await fetch(`${baseUrl}/cart/find/${userId}`, {
         headers: {
           "Authorization": token ? `Bearer ${token}` : ""
         }
       })
-      
+
       if (!cartResponse.ok) {
         throw new Error("Failed to get cart information")
       }
-      
+
       const cartData = await cartResponse.json()
-      
+
       // Get current products
       const currentProducts = cartData.cart?.products || cartData.products || []
-      
+
       // Filter out the removed product
       const updatedProducts = currentProducts.filter((prod: { productId: string }) => prod.productId !== productId)
-      
+
       // Send update to server
       const updateResponse = await fetch(`${baseUrl}/cart/update/${cartId}`, {
         method: "PUT",
@@ -482,13 +487,13 @@ export default function CartPage() {
           products: updatedProducts
         })
       })
-      
+
       if (!updateResponse.ok) {
         throw new Error("Failed to update cart")
       }
-      
+
       toast.success("Item removed from cart")
-      
+
     } catch (error) {
       console.error("Error removing item:", error)
       toast.error("Failed to remove item")
@@ -499,14 +504,14 @@ export default function CartPage() {
   // Clear entire cart
   const clearCart = async () => {
     if (!userId || !cartId) return
-    
+
     try {
       // Clear cart in UI first
       setCartItems([])
-      
+
       // Get token for authorization
       const token = localStorage.getItem("token")
-      
+
       // Send update to server with empty products array
       const updateResponse = await fetch(`${baseUrl}/cart/update/${cartId}`, {
         method: "PUT",
@@ -518,13 +523,13 @@ export default function CartPage() {
           products: []
         })
       })
-      
+
       if (!updateResponse.ok) {
         throw new Error("Failed to clear cart")
       }
-      
+
       toast.success("Cart cleared")
-      
+
     } catch (error) {
       console.error("Error clearing cart:", error)
       toast.error("Failed to clear cart")
@@ -535,13 +540,13 @@ export default function CartPage() {
   // Save item for later
   const moveToSavedForLater = async (productId: string) => {
     if (!userId) return
-    
+
     try {
       setMovingItem(productId)
-      
+
       // Get token for authorization
       const token = localStorage.getItem("token")
-      
+
       // Use the backend's dedicated moveToSaved endpoint
       const moveResponse = await fetch(`${baseUrl}/products/move-to-saved`, {
         method: "POST",
@@ -555,33 +560,33 @@ export default function CartPage() {
           cartId: cartId
         })
       })
-      
+
       if (!moveResponse.ok) {
         const errorText = await moveResponse.text()
         console.error("Error moving to saved for later:", errorText)
         throw new Error("Failed to save item for later")
       }
-      
+
       const moveData = await moveResponse.json()
-      
+
       // If successful, update UI
       if (moveData.removedFromCart) {
         // Remove from cart items
         setCartItems(prevItems => prevItems.filter(item => item.id !== productId))
       }
-      
+
       toast.success(moveData.message || "Item saved for later")
-      
+
       // Make sure saved items section is open
       setSavedForLaterOpen(true)
-      
+
       // Refresh saved items to get the accurate list
       fetchSavedForLaterItems()
-      
+
     } catch (error) {
       console.error("Error moving item to saved for later:", error)
       toast.error("Failed to save item for later")
-      
+
       // Revert optimistic updates in case of error
       fetchCartItems(userId)
       fetchSavedForLaterItems()
@@ -593,19 +598,19 @@ export default function CartPage() {
   // Move saved item back to cart
   const moveToCart = async (savedItemId: string) => {
     if (!userId) return
-    
+
     try {
       setMovingItem(savedItemId)
-      
+
       // Find the saved item
       const savedItem = savedForLaterItems.find(item => item.id === savedItemId)
       if (!savedItem) {
         throw new Error("Saved item not found")
       }
-      
+
       // Get token for authorization
       const token = localStorage.getItem("token")
-      
+
       // First, remove from saved for later in the backend
       const toggleResponse = await fetch(`${baseUrl}/products/savedforlater/toggle`, {
         method: "POST",
@@ -618,14 +623,14 @@ export default function CartPage() {
           productId: savedItemId
         })
       })
-      
+
       if (!toggleResponse.ok) {
         throw new Error("Failed to remove from saved items")
       }
-      
+
       // Remove from local saved items immediately for responsive UI
       setSavedForLaterItems(prev => prev.filter(item => item.id !== savedItemId))
-      
+
       // Prepare item for cart
       const cartItem = {
         productId: savedItemId,
@@ -637,7 +642,7 @@ export default function CartPage() {
         size: savedItem.size,
         color: savedItem.color
       }
-      
+
       // If we have a cart already
       if (cartId) {
         // Get current cart info
@@ -646,25 +651,25 @@ export default function CartPage() {
             "Authorization": token ? `Bearer ${token}` : ""
           }
         })
-        
+
         if (cartResponse.ok) {
           const cartData = await cartResponse.json()
           const currentProducts = cartData.cart?.products || cartData.products || []
-          
+
           // Check if product already exists in cart
           const existingProductIndex = currentProducts.findIndex(
             (p: any) => p.productId === savedItemId
           )
-          
+
           if (existingProductIndex !== -1) {
             // Product exists in cart, increase quantity
-            currentProducts[existingProductIndex].quantity = 
+            currentProducts[existingProductIndex].quantity =
               (currentProducts[existingProductIndex].quantity || 1) + 1
           } else {
             // Add product to cart
             currentProducts.push(cartItem)
           }
-          
+
           // Update cart
           const updateResponse = await fetch(`${baseUrl}/cart/update/${cartId}`, {
             method: "PUT",
@@ -676,7 +681,7 @@ export default function CartPage() {
               products: currentProducts
             })
           })
-          
+
           if (!updateResponse.ok) {
             throw new Error("Failed to update cart")
           }
@@ -696,11 +701,11 @@ export default function CartPage() {
             products: [cartItem]
           })
         })
-        
+
         if (!createResponse.ok) {
           throw new Error("Failed to create cart")
         }
-        
+
         // Extract cart ID from response for future operations
         const createData = await createResponse.json()
         if (createData.cart?._id) {
@@ -709,17 +714,17 @@ export default function CartPage() {
           setCartId(createData._id)
         }
       }
-      
+
       toast.success("Item moved to cart")
-      
+
       // Refresh cart and saved items lists
       fetchCartItems(userId)
       fetchSavedForLaterItems()
-      
+
     } catch (error) {
       console.error("Error moving saved item to cart:", error)
       toast.error("Failed to move item to cart")
-      
+
       // Refresh both lists on error
       fetchCartItems(userId)
       fetchSavedForLaterItems()
@@ -731,14 +736,14 @@ export default function CartPage() {
   // Remove an item from saved for later
   const removeSavedItem = async (itemId: string) => {
     if (!userId) return
-    
+
     try {
       // Optimistically update UI
       setSavedForLaterItems(prev => prev.filter(item => item.id !== itemId))
-      
+
       // Get token for authorization
       const token = localStorage.getItem("token")
-      
+
       // Remove from saved for later in the backend
       const toggleResponse = await fetch(`${baseUrl}/products/savedforlater/toggle`, {
         method: "POST",
@@ -751,16 +756,16 @@ export default function CartPage() {
           productId: itemId
         })
       })
-      
+
       if (!toggleResponse.ok) {
         throw new Error("Failed to remove from saved items")
       }
-      
+
       toast.success("Item removed from saved list")
     } catch (error) {
       console.error("Error removing saved item:", error)
       toast.error("Failed to remove saved item")
-      
+
       // Refresh on error
       fetchSavedForLaterItems()
     }
@@ -772,13 +777,13 @@ export default function CartPage() {
       toast.error("Please enter a valid promo code")
       return
     }
-    
+
     try {
       setApplyingPromo(true)
-      
+
       // Get token for authorization
       const token = localStorage.getItem("token")
-      
+
       // Call the promo code apply endpoint
       const response = await fetch(`${baseUrl}/cart/apply-promo`, {
         method: "POST",
@@ -792,22 +797,22 @@ export default function CartPage() {
           promoCode: promoCode
         })
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.message || "Failed to apply promo code")
       }
-      
+
       const data = await response.json()
       console.log("Promo code applied successfully:", data)
-      
+
       // Update UI with promo details
       setPromoApplied(true)
       setPromoDetails(data.cart?.promoCode || data.promoCode)
-      
+
       // Show success message
       toast.success(data.message || "Promo code applied successfully")
-      
+
       // Refresh cart to show updated totals
       fetchCartItems(userId)
     } catch (error) {
@@ -827,11 +832,11 @@ export default function CartPage() {
   // Remove promo code
   const handleRemovePromo = async () => {
     if (!userId || !cartId) return
-    
+
     try {
       // Get token for authorization
       const token = localStorage.getItem("token")
-      
+
       // Call the promo code remove endpoint
       const response = await fetch(`${baseUrl}/cart/remove-promo`, {
         method: "POST",
@@ -844,18 +849,18 @@ export default function CartPage() {
           cartId: cartId
         })
       })
-      
+
       if (!response.ok) {
         throw new Error("Failed to remove promo code")
       }
-      
+
       // Reset promo state
       setPromoApplied(false)
       setPromoDetails(null)
       setPromoCode("")
-      
+
       toast.success("Promo code removed")
-      
+
       // Refresh cart to show updated totals
       fetchCartItems(userId)
     } catch (error) {
@@ -878,16 +883,16 @@ export default function CartPage() {
   // Format date to be more readable
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     })
   }
 
   // Helper function to get the promo code icon
   const getPromoIcon = (type: string) => {
-    switch(type) {
+    switch (type) {
       case 'percentage':
         return <Percent className="h-5 w-5 text-green-500" />
       case 'fixed_amount':
@@ -903,7 +908,7 @@ export default function CartPage() {
 
   // Helper function to get human-readable promo type
   const getPromoTypeLabel = (type: string) => {
-    switch(type) {
+    switch (type) {
       case 'percentage':
         return 'Percentage Off'
       case 'fixed_amount':
@@ -931,7 +936,7 @@ export default function CartPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
             <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-          <h2 className="text-xl font-medium mb-2">Loading your cart...</h2>
+          <h2 className="text-xl font-medium mb-2">{t("cart.loading")}</h2>
         </div>
       </div>
     )
@@ -939,27 +944,27 @@ export default function CartPage() {
 
   return (
     <div className="container py-8">
-      <h1 className="text-3xl font-bold mb-8">Your Cart</h1>
-      
+      <h1 className="text-3xl font-bold mb-8">{t("cart.title")}</h1>
+
       {isCartNotFound || cartItems.length === 0 ? (
         <div className="text-center py-12 border rounded-lg">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
             <ShoppingBag className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h2 className="text-xl font-medium mb-2">Your cart is empty</h2>
+          <h2 className="text-xl font-medium mb-2">{t("cart.empty.title")}</h2>
           <p className="text-muted-foreground mb-4">
-            Looks like you haven't added anything to your cart yet.
+            {t("cart.empty.description")}
           </p>
           <div className="flex flex-col space-y-4 items-center">
             <Button asChild>
-              <Link href="/shop">Continue Shopping</Link>
+              <Link href="/shop">{t("cart.empty.continueShopping")}</Link>
             </Button>
-            
+
             {savedForLaterTotal > 0 && (
               <Button variant="outline" asChild>
                 <Link href="/saved-for-later" className="flex items-center">
                   <Bookmark className="h-4 w-4 mr-2" />
-                  See your saved for later items ({savedForLaterTotal})
+                  {t("cart.empty.seeSavedItems", { count: savedForLaterTotal })}
                 </Link>
               </Button>
             )}
@@ -971,14 +976,14 @@ export default function CartPage() {
           <div className="md:col-span-2 space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">
-                Cart Items ({cartItems.length})
+                {t("cart.itemsSection.title", { count: cartItems.length })}
               </h2>
               <Button variant="outline" size="sm" onClick={clearCart}>
                 <Trash2 className="h-4 w-4 mr-2" />
-                Clear Cart
+                {t("cart.itemsSection.clearCart")}
               </Button>
             </div>
-            
+
             {/* Cart Items List */}
             {cartItems.map((item) => (
               <Card key={item.id} className="overflow-hidden">
@@ -1006,10 +1011,10 @@ export default function CartPage() {
                               onClick={() => removeItem(item.id)}
                             >
                               <Trash2 className="h-4 w-4 text-muted-foreground" />
-                              <span className="sr-only">Remove</span>
+                              <span className="sr-only">{t("cart.actions.remove")}</span>
                             </Button>
                           </div>
-                          
+
                           {(item.color || item.size) && (
                             <div className="text-sm text-muted-foreground mb-2">
                               {item.color && <span>{item.color}</span>}
@@ -1017,12 +1022,12 @@ export default function CartPage() {
                               {item.size && <span>{item.size}</span>}
                             </div>
                           )}
-                          
+
                           <div className="text-sm text-muted-foreground line-clamp-2 mb-4">
                             {item.description}
                           </div>
                         </div>
-                        
+
                         <div className="flex justify-between items-end">
                           <div className="flex items-center space-x-2">
                             <Button
@@ -1033,7 +1038,7 @@ export default function CartPage() {
                               disabled={item.quantity <= 1}
                             >
                               <Minus className="h-4 w-4" />
-                              <span className="sr-only">Decrease</span>
+                              <span className="sr-only">{t("cart.actions.decrease")}</span>
                             </Button>
                             <span className="w-8 text-center">{item.quantity}</span>
                             <Button
@@ -1043,10 +1048,10 @@ export default function CartPage() {
                               onClick={() => updateItemQuantity(item.id, item.quantity + 1)}
                             >
                               <Plus className="h-4 w-4" />
-                              <span className="sr-only">Increase</span>
+                              <span className="sr-only">{t("cart.actions.increase")}</span>
                             </Button>
                           </div>
-                          
+
                           <div className="flex items-center gap-4">
                             <Button
                               variant="ghost"
@@ -1060,9 +1065,10 @@ export default function CartPage() {
                               ) : (
                                 <BookmarkCheck className="h-4 w-4 mr-2" />
                               )}
-                              Save for Later
+                              {t("cart.actions.saveForLater")}
                             </Button>
-                            
+
+                            {/* Price format changed to direct hardcoded format */}
                             <div className="font-medium">
                               ${(item.price * item.quantity).toFixed(2)}
                             </div>
@@ -1071,33 +1077,33 @@ export default function CartPage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Mobile-only row of action buttons */}
                   <div className="flex sm:hidden justify-between items-center border-t p-3">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => moveToSavedForLater(item.id)}
                       disabled={movingItem === item.id}
                       className="flex-1 mr-2"
                     >
                       <BookmarkCheck className="h-4 w-4 mr-2" />
-                      Save
+                      {t("cart.actions.save")}
                     </Button>
-                    <Button 
-                      variant="destructive" 
-                      size="sm" 
+                    <Button
+                      variant="destructive"
+                      size="sm"
                       onClick={() => removeItem(item.id)}
                       className="flex-1"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Remove
+                      {t("cart.actions.remove")}
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             ))}
-            
+
             {/* Saved For Later Section */}
             <Accordion
               type="single"
@@ -1110,7 +1116,7 @@ export default function CartPage() {
                 <AccordionTrigger className="px-4 py-3 hover:no-underline">
                   <div className="flex items-center space-x-2">
                     <Bookmark className="h-5 w-5" />
-                    <span>Saved for Later ({savedForLaterTotal})</span>
+                    <span>{t("cart.savedForLater.title", { count: savedForLaterTotal })}</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-0">
@@ -1118,11 +1124,11 @@ export default function CartPage() {
                     {loadingSavedItems ? (
                       <div className="text-center py-8">
                         <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">Loading saved items...</p>
+                        <p className="text-sm text-muted-foreground">{t("cart.savedForLater.loading")}</p>
                       </div>
                     ) : savedForLaterItems.length === 0 ? (
                       <div className="text-center py-8">
-                        <p className="text-muted-foreground">No saved items</p>
+                        <p className="text-muted-foreground">{t("cart.savedForLater.empty")}</p>
                       </div>
                     ) : (
                       savedForLaterItems.map((item) => (
@@ -1151,10 +1157,10 @@ export default function CartPage() {
                                         onClick={() => removeSavedItem(item.id)}
                                       >
                                         <Trash2 className="h-4 w-4 text-muted-foreground" />
-                                        <span className="sr-only">Remove</span>
+                                        <span className="sr-only">{t("cart.actions.remove")}</span>
                                       </Button>
                                     </div>
-                                    
+
                                     {(item.color || item.size) && (
                                       <div className="text-sm text-muted-foreground mb-2">
                                         {item.color && <span>{item.color}</span>}
@@ -1162,15 +1168,15 @@ export default function CartPage() {
                                         {item.size && <span>{item.size}</span>}
                                       </div>
                                     )}
-                                    
+
                                     {item.savedAt && (
                                       <div className="text-xs text-muted-foreground flex items-center mb-2">
                                         <Clock className="h-3 w-3 mr-1" />
-                                        Saved on {formatDate(item.savedAt)}
+                                        {t("cart.savedForLater.savedOn", { date: formatDate(item.savedAt) })}
                                       </div>
                                     )}
                                   </div>
-                                  
+
                                   <div className="flex justify-between items-center mt-2">
                                     <Button
                                       variant="outline"
@@ -1183,9 +1189,10 @@ export default function CartPage() {
                                       ) : (
                                         <ShoppingCart className="h-4 w-4 mr-2" />
                                       )}
-                                      Move to Cart
+                                      {t("cart.savedForLater.moveToCart")}
                                     </Button>
-                                    
+
+                                    {/* Price format changed to direct hardcoded format */}
                                     <div className="font-medium">${item.price.toFixed(2)}</div>
                                   </div>
                                 </div>
@@ -1199,57 +1206,60 @@ export default function CartPage() {
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
-            
+
           </div>
-          
+
           {/* Order Summary Section - 1/3 width on desktop */}
           <div className="space-y-4">
             <Card>
               <CardContent className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
-                
+                <h2 className="text-xl font-semibold mb-4">{t("cart.orderSummary.title")}</h2>
+
                 <div className="space-y-3 mb-4">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="text-muted-foreground">{t("cart.orderSummary.subtotal")}</span>
+                    {/* Price format changed to direct hardcoded format */}
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
-                  
+
                   {promoApplied && promoDetails && (
                     <div className="flex justify-between text-green-600">
                       <div className="flex items-center">
                         <Percent className="h-4 w-4 mr-1" />
-                        <span>{promoDetails.code} Discount</span>
+                        <span>Discount ({promoDetails.code})</span>
                       </div>
                       <span>-${discount.toFixed(2)}</span>
                     </div>
                   )}
-                  
+
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Shipping</span>
+                    <span className="text-muted-foreground">{t("cart.orderSummary.shipping")}</span>
                     <span>
-                      {shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}
+                      {shipping === 0 ? t("cart.orderSummary.free") : `$${shipping.toFixed(2)}`}
                     </span>
                   </div>
-                  
+
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tax</span>
+                    <span className="text-muted-foreground">{t("cart.orderSummary.tax")}</span>
+                    {/* Price format changed to direct hardcoded format */}
                     <span>${tax.toFixed(2)}</span>
                   </div>
-                  
+
                   <Separator className="my-2" />
-                  
+
                   <div className="flex justify-between font-medium text-lg">
-                    <span>Total</span>
+                    <span>{t("cart.orderSummary.total")}</span>
+                    {/* Price format changed to direct hardcoded format */}
                     <span>${total.toFixed(2)}</span>
                   </div>
                 </div>
-                
+
                 {/* Promo Code Section */}
                 <div className="pt-4 border-t">
                   <h3 className="text-sm font-medium mb-2">
-                    {promoApplied ? 'Promo Code Applied' : 'Have a Promo Code?'}
+                    {promoApplied ? "Promo Applied" : "Have a promo code?"}
                   </h3>
-                  
+
                   {promoApplied && promoDetails ? (
                     <div className="mb-4">
                       <div className="bg-muted p-3 rounded-md flex items-center justify-between mb-2">
@@ -1262,9 +1272,9 @@ export default function CartPage() {
                             </div>
                           </div>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={handleRemovePromo}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1274,25 +1284,25 @@ export default function CartPage() {
                   ) : (
                     <div className="flex gap-2 mb-4">
                       <Input
-                        placeholder="Enter promo code"
+                        placeholder={t("cart.promoCode.placeholder")}
                         value={promoCode}
                         onChange={(e) => setPromoCode(e.target.value)}
                         className="flex-1"
                       />
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         disabled={applyingPromo || !promoCode.trim()}
                         onClick={handleApplyPromo}
                       >
                         {applyingPromo ? (
                           <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                         ) : (
-                          'Apply'
+                          t("cart.promoCode.apply")
                         )}
                       </Button>
                     </div>
                   )}
-                  
+
                   {/* Available Promo Codes */}
                   {availablePromoCodes.length > 0 && !promoApplied && (
                     <Accordion type="single" collapsible className="border rounded-md">
@@ -1300,14 +1310,14 @@ export default function CartPage() {
                         <AccordionTrigger className="px-3 py-2 text-sm hover:no-underline">
                           <span className="flex items-center">
                             <Tag className="h-4 w-4 mr-2" />
-                            Available Promo Codes
+                            {t("cart.promoCode.availableCodes")}
                           </span>
                         </AccordionTrigger>
                         <AccordionContent className="px-3 pb-3 pt-0">
                           <div className="space-y-2">
                             {availablePromoCodes.map((promo) => (
-                              <div 
-                                key={promo.code} 
+                              <div
+                                key={promo.code}
                                 className="flex items-center justify-between border rounded p-2 cursor-pointer hover:bg-muted"
                                 onClick={() => applyPromoFromList(promo.code)}
                               >
@@ -1321,7 +1331,7 @@ export default function CartPage() {
                                   </div>
                                 </div>
                                 <Button variant="ghost" size="sm">
-                                  Apply
+                                  {t("cart.promoCode.apply")}
                                 </Button>
                               </div>
                             ))}
@@ -1331,25 +1341,25 @@ export default function CartPage() {
                     </Accordion>
                   )}
                 </div>
-                
+
                 {/* Checkout Button */}
                 <Button className="w-full mt-4" size="lg" asChild>
                   <Link href="/checkout/confirmation">
                     <ShoppingBag className="h-5 w-5 mr-2" />
-                    Proceed to Checkout
+                    {t("cart.checkout.proceedButton")}
                   </Link>
                 </Button>
               </CardContent>
               <CardFooter className="flex items-center justify-center p-4 bg-muted/50 text-xs text-muted-foreground">
                 <ShoppingCart className="h-3 w-3 mr-1" />
-                Your cart is secure and encrypted
+                {t("cart.checkout.secureMessage")}
               </CardFooter>
             </Card>
-            
+
             <Button variant="outline" className="w-full" asChild>
               <Link href="/shop">
                 <ArrowRight className="h-4 w-4 mr-2" />
-                Continue Shopping
+                {t("cart.continueShopping")}
               </Link>
             </Button>
           </div>

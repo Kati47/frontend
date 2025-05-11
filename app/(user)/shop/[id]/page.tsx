@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   ChevronLeft,
   Heart,
@@ -28,57 +28,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-
-// Define base URL for API calls with fallback
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1";
-
-interface User {
-  _id: string;
-  name?: string;
-  username?: string;
-}
-
-interface Product {
-  _id: string;
-  title: string;
-  desc: string;
-  img: string;
-  categories: string[];
-  size: string;
-  color: string;
-  price: number;
-  inStock: boolean;
-  quantity: number;
-  lowStockThreshold: number;
-  model3d: string | null;
-  model3dFormat: string | null;
-  model3dThumbnail: string | null;
-  favoritedBy: Array<{
-    userId: string;
-    addedAt: string;
-  }>;
-  savedForLaterBy: Array<{
-    userId: string;
-    savedAt: string;
-    fromCart: boolean;
-  }>;
-  favoriteCount: number;
-  savedForLaterCount: number;
-  averageRating: number;
-  reviewCount: number;
-  isInCart?: boolean;
-  cartQuantity?: number;
-}
-
-interface Review {
-  _id: string;
-  userId: string | User;
-  username?: string;
-  rating: number;
-  title?: string;
-  comment: string;
-  createdAt?: string;
-}
+import { ProductService, Product, Review, User } from "@/services/product.service";
+import { useTranslation } from "@/lib/i18n/client";
 
 interface SketchfabViewerProps {
   modelId: string;
@@ -125,13 +76,14 @@ function SketchfabViewer({
   );
 }
 
-export default function ProductDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const productId = params.id;
+// Change to use useParams hook instead of params prop
+export default function ProductDetailPage() {
+  const params = useParams();
+  const productId = params.id as string; // Cast to string type
   const router = useRouter();
+  // Keep for compatibility but don't use t function
+  const { t } = useTranslation();
+  const locale = "en"; // Default locale
 
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -181,7 +133,7 @@ export default function ProductDetailPage({
     }
   };
 
-  // Load user data on component mount
+  // Load user data and product data on component mount
   useEffect(() => {
     const storedUserId = getUserIdFromLocalStorage();
     const storedToken = localStorage.getItem("token");
@@ -189,63 +141,98 @@ export default function ProductDetailPage({
     setUserId(storedUserId);
     setToken(storedToken);
     
-    if (storedUserId && productId) {
-      fetchProduct(productId, storedUserId, storedToken);
-      fetchReviews(productId);
-      checkIfInCart(storedUserId, productId, storedToken || "")
-        .then(inCart => {
-          setIsInCart(inCart);
-          if (inCart) {
-            checkCartStatus(productId, storedUserId, storedToken);
+    // Load initial data
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Fetch product data with locale
+        if (storedUserId && productId) {
+          const productData = await ProductService.fetchProduct(
+            productId, 
+            storedUserId, 
+            storedToken,
+            locale
+          );
+          
+          // Set favorite and saved status based on API response
+          const isUserFavorite = productData.favoritedBy?.some(
+            (fav: any) => fav.userId === storedUserId
+          );
+          
+          const isUserSaved = productData.savedForLaterBy?.some(
+            (saved: any) => saved.userId === storedUserId
+          );
+          
+          setIsFavorite(!!isUserFavorite);
+          setIsSaved(!!isUserSaved);
+          setProduct(productData);
+          
+          // Set initial size and color
+          if (productData.size) {
+            const sizes = productData.size.split(",").map((s: string) => s.trim());
+            setSelectedSize(sizes[0]);
           }
-        });
-    } else {
-      fetchProduct(productId);
-      fetchReviews(productId);
-    }
-
-    // Save optimistic reviews in localStorage if they exist
+          
+          if (productData.color) {
+            const colors = productData.color.split(",").map((c: string) => c.trim());
+            setSelectedColor(colors[0]);
+          }
+          
+          // Check if product is in cart
+          const inCart = await ProductService.checkIfInCart(storedUserId, productId, storedToken || "");
+          setIsInCart(inCart);
+          
+          if (inCart) {
+            const cartStatus = await ProductService.checkCartStatus(productId, storedUserId, storedToken);
+            if (cartStatus.isInCart) {
+              setQuantity(cartStatus.quantity);
+            }
+          }
+        } else {
+          // Fetch product without user context but with locale
+          const productData = await ProductService.fetchProduct(productId, undefined, undefined, locale);
+          setProduct(productData);
+          
+          // Set initial size and color
+          if (productData.size) {
+            const sizes = productData.size.split(",").map((s: string) => s.trim());
+            setSelectedSize(sizes[0]);
+          }
+          
+          if (productData.color) {
+            const colors = productData.color.split(",").map((c: string) => c.trim());
+            setSelectedColor(colors[0]);
+          }
+        }
+        
+        // Fetch reviews
+        const reviewsData = await ProductService.fetchReviews(productId, storedToken);
+        setReviews(reviewsData);
+        
+        // Save to localStorage for immediate feedback
+        localStorage.setItem(`product-reviews-${productId}`, JSON.stringify(reviewsData));
+        
+      } catch (err) {
+        console.error("Error loading initial data:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to load product details"
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadInitialData();
+    
+    // Load optimistic reviews from localStorage if they exist
     const storedReviews = JSON.parse(localStorage.getItem(`product-reviews-${productId}`) || "[]");
     if (storedReviews.length > 0) {
       console.log("Found locally stored reviews:", storedReviews);
       setReviews(storedReviews);
     }
-  }, [productId]);
-
-  // Fetch user name by ID
-  const fetchUserName = async (userId: string): Promise<void> => {
-    if (!userId || userNames[userId]) return;
-    
-    try {
-      console.log(`Fetching name for user ID from review: ${userId}`);
-      
-      // Updated to use the correct endpoint structure: /users/:id/name
-      const response = await fetch(`${baseUrl}/users/${userId}/name`, {
-        method: 'GET',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        console.error(`Error fetching user name for ${userId}: ${response.status}`);
-        return;
-      }
-      
-      const data = await response.json();
-      console.log(`Name data received for ${userId}:`, data);
-      
-      if (data && (data.name || data.username)) {
-        setUserNames(prev => ({
-          ...prev,
-          [userId]: data.name || data.username || 'User'
-        }));
-      }
-    } catch (error) {
-      console.error(`Error fetching name for user ${userId}:`, error);
-    }
-  };
+  }, [productId, locale]);
 
   // Extract user ID from review
   const extractUserId = (review: Review): string | null => {
@@ -274,10 +261,10 @@ export default function ProductDetailPage({
     
     if (typeof review.userId === 'object' && 'string' !== typeof review.userId) {
       const user = review.userId as User;
-      return user.name || user.username || 'Anonymous';
+      return user.name || user.username || "Anonymous User";
     }
     
-    return review.username || 'Anonymous';
+    return review.username || "Anonymous User";
   };
 
   // Fetch user names for reviews whenever they change
@@ -293,368 +280,26 @@ export default function ProductDetailPage({
     });
     
     // Fetch names for all pending user IDs
-    pendingUserIds.forEach(userId => {
-      fetchUserName(userId);
-    });
-  }, [reviews, userNames]);
-
-  // Fetch product details
-  const fetchProduct = async (productId: string, userId?: string, token?: string | null) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Basic product endpoint
-      let url = `${baseUrl}/products/find/${productId}`;
-      
-      // If user is logged in, use the enhanced endpoint that includes user-specific info
-      if (userId && token) {
-        url = `${baseUrl}/products/find/${productId}?userId=${userId}`;
-      }
-      
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(url, { headers });
-      
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch product: ${response.status} ${response.statusText}`
-        );
-      }
-      
-      const data = await response.json();
-      
-      // Handle different API response formats
-      const productData = data.product || data;
-      
-      // Set favorite and saved status based on API response or manual check
-      const isUserFavorite = productData.favoritedBy?.some(
-        (fav: any) => fav.userId === userId
-      );
-      
-      const isUserSaved = productData.savedForLaterBy?.some(
-        (saved: any) => saved.userId === userId
-      );
-      
-      setIsFavorite(!!isUserFavorite);
-      setIsSaved(!!isUserSaved);
-      setProduct(productData);
-      
-      // Set initial size and color
-      if (productData.size) {
-        const sizes = productData.size.split(",").map((s: string) => s.trim());
-        setSelectedSize(sizes[0]);
-      }
-      
-      if (productData.color) {
-        const colors = productData.color.split(",").map((c: string) => c.trim());
-        setSelectedColor(colors[0]);
-      }
-      
-    } catch (err) {
-      console.error("Error fetching product:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load product details"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch product reviews
-  const fetchReviews = async (productId: string) => {
-    try {
-      console.log(`Fetching reviews for product: ${productId}`);
-      
-      // First try without authentication
-      const response = await fetch(`${baseUrl}/reviews/product/${productId}`);
-      
-      if (!response.ok) {
-        console.error("Failed to fetch reviews:", response.status);
-        
-        // If auth is required, try with token
-        if (response.status === 401 && token) {
-          console.log("Attempting authenticated fetch for reviews");
-          const authResponse = await fetch(`${baseUrl}/reviews/product/${productId}`, {
-            headers: {
-              "Authorization": `Bearer ${token}`
-            }
-          });
-          
-          if (authResponse.ok) {
-            const authData = await authResponse.json();
-            console.log("Authenticated reviews data:", authData);
-            
-            // Process and set reviews
-            if (Array.isArray(authData)) {
-              setReviews(authData);
-            } else if (authData && Array.isArray(authData.reviews)) {
-              setReviews(authData.reviews);
-            }
-            return;
+    const fetchAllUserNames = async () => {
+      for (const userId of pendingUserIds) {
+        try {
+          const userData = await ProductService.fetchUserName(userId, token);
+          if (userData && (userData.name || userData.username)) {
+            setUserNames(prev => ({
+              ...prev,
+              [userId]: userData.name || userData.username || "User"
+            }));
           }
+        } catch (error) {
+          console.error(`Error fetching name for user ${userId}:`, error);
         }
-        
-        // If all fails, set empty reviews
-        setReviews([]);
-        return;
       }
-      
-      const data = await response.json();
-      console.log("Reviews data received:", data);
-      
-      // Handle different response formats
-      if (Array.isArray(data)) {
-        setReviews(data);
-      } else if (data && Array.isArray(data.reviews)) {
-        setReviews(data.reviews);
-      } else {
-        console.log("No reviews found or unexpected data format:", data);
-        setReviews([]);
-      }
-      
-      // Save to localStorage for immediate feedback
-      localStorage.setItem(`product-reviews-${productId}`, JSON.stringify(
-        Array.isArray(data) ? data : 
-        (data && Array.isArray(data.reviews)) ? data.reviews : []
-      ));
-      
-    } catch (err) {
-      console.error("Error fetching reviews:", err);
-      setReviews([]);
-    }
-  };
-
-  // Check if product is already in user's cart
-  const checkIfInCart = async (userId: string, productId: string, token: string): Promise<boolean> => {
-    try {
-      const response = await fetch(`${baseUrl}/cart/find/${userId}`, {
-        headers: { 
-          "Authorization": `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        return false; // No cart found or error
-      }
-      
-      const cartData = await response.json();
-      
-      // Handle different API response formats
-      let products = [];
-      if (cartData.products && Array.isArray(cartData.products)) {
-        products = cartData.products;
-      } else if (cartData.cart && cartData.cart.products && Array.isArray(cartData.cart.products)) {
-        products = cartData.cart.products;
-      }
-      
-      // Check if product exists in cart
-      return products.some((item: { productId: string }) => 
-        item.productId === productId
-      );
-    } catch (error) {
-      console.error("Error checking if product is in cart:", error)
-      return false;
-    }
-  };
-
-  // Add to cart function
-  async function addToCart(userId: string, productData: any, token: string) {
-    if (!userId || !productData || !token) {
-      throw new Error("Missing required parameters for cart addition");
-    }
+    };
     
-    // Normalize input to always work with an array of products
-    const products = Array.isArray(productData) ? productData : [productData];
-    
-    console.log("Processing cart addition for:", {
-      userId,
-      products: products
-    });
-    
-    try {
-      // First check if the user has an existing cart
-      const checkCartResponse = await fetch(`${baseUrl}/cart/find/${userId}`, {
-        headers: { 
-          "Authorization": `Bearer ${token}`
-        }
-      });
-      
-      console.log("Cart check response status:", checkCartResponse.status);
-      
-      if (checkCartResponse.ok) {
-        // Cart exists - we'll update it
-        const cartData = await checkCartResponse.json();
-        console.log("Existing cart found:", cartData);
-        
-        // Extract existing products from cart
-        let existingProducts = [];
-        
-        // Handle different API response formats
-        if (cartData.products && Array.isArray(cartData.products)) {
-          existingProducts = cartData.products;
-        } else if (cartData.cart && cartData.cart.products && Array.isArray(cartData.cart.products)) {
-          existingProducts = cartData.cart.products;
-        } else {
-          console.log("No existing products found in cart or unexpected format");
-        }
-        
-        console.log("Existing products:", existingProducts.length);
-        
-        // Format the new products as expected by the API, preserving all details
-        const formattedProducts = products.map(product => ({
-          productId: product.productId,
-          quantity: product.quantity || 1,
-          title: product.title || "Product",
-          price: typeof product.price === 'number' ? product.price : 0,
-          img: product.img || "",
-          desc: product.desc || "",
-          size: product.size || "",
-          color: product.color || ""
-        }));
-        
-        console.log("Formatted products with full details:", formattedProducts);
-        
-        // Check if the product already exists in the cart
-        const updatedProducts = [...existingProducts];
-        
-        // For each new product
-        for (const newProduct of formattedProducts) {
-          // Find if this product already exists in cart
-          const existingProductIndex = existingProducts.findIndex(
-            (p: { productId: string }) => p.productId === newProduct.productId
-          );
-          
-          if (existingProductIndex >= 0) {
-            // Product exists - update the quantity and ensure all details are preserved
-            updatedProducts[existingProductIndex] = {
-              ...existingProducts[existingProductIndex],
-              ...newProduct,
-              quantity: (existingProducts[existingProductIndex].quantity || 1) + (newProduct.quantity || 1)
-            };
-            console.log(`Updated existing product ${newProduct.productId} quantity`);
-          } else {
-            // Product doesn't exist - add it with all details
-            updatedProducts.push(newProduct);
-            console.log(`Added new product ${newProduct.productId} to cart`);
-          }
-        }
-        
-        console.log("Final updated products list:", updatedProducts);
-        
-        // Get cart ID based on response format
-        const cartId = cartData.cart?._id || cartData._id;
-        console.log("Using cart ID:", cartId);
-        
-        // Update the cart with all products
-        const updateResponse = await fetch(`${baseUrl}/cart/update/${cartId}`, {
-          method: "PUT",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            products: updatedProducts
-          }),
-        });
-        
-        console.log("Cart update response status:", updateResponse.status);
-        
-        if (!updateResponse.ok) {
-          const errorText = await updateResponse.text();
-          console.error("Cart update error response:", errorText);
-          throw new Error(`Failed to update cart: ${errorText}`);
-        }
-        
-        return await updateResponse.json();
-        
-      } else if (checkCartResponse.status === 404) {
-        // No cart exists - create a new one with this product
-        console.log("No existing cart found, creating new one");
-        
-        // Format the products for the API, ensuring all details are included
-        const formattedProducts = products.map(product => ({
-          productId: product.productId,
-          quantity: product.quantity || 1,
-          title: product.title || "Product",
-          price: typeof product.price === 'number' ? product.price : 0,
-          img: product.img || "",
-          desc: product.desc || "",
-          size: product.size || "",
-          color: product.color || ""
-        }));
-        
-        console.log("Formatted products for cart creation (with full details):", formattedProducts);
-        
-        // Create a new cart with these products
-        const createResponse = await fetch(`${baseUrl}/cart/add`, {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            userId,
-            products: formattedProducts
-          }),
-        });
-        
-        console.log("Cart creation response status:", createResponse.status);
-        
-        if (!createResponse.ok) {
-          const errorText = await createResponse.text();
-          console.error("Cart creation error response:", errorText);
-          throw new Error(`Failed to create cart: ${errorText}`);
-        }
-        
-        return await createResponse.json();
-      } else {
-        // Some other error occurred when checking for the cart
-        const errorText = await checkCartResponse.text();
-        console.error("Error checking for cart:", errorText);
-        throw new Error(`Failed to check cart: ${errorText}`);
-      }
-    } catch (error) {
-      console.error("Cart API error:", error);
-      throw error;
+    if (pendingUserIds.size > 0) {
+      fetchAllUserNames();
     }
-  }
-
-  // Check if the product is in user's cart
-  const checkCartStatus = async (productId: string, userId: string, token: string | null) => {
-    if (!userId || !token) return;
-    
-    try {
-      const response = await fetch(`${baseUrl}/cart/find/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      
-      if (!response.ok) {
-        console.error("Failed to fetch cart:", response.status);
-        return;
-      }
-      
-      const data = await response.json();
-      const cart = data.cart || data;
-      
-      const productInCart = cart.products?.find(
-        (item: any) => item.productId === productId
-      );
-      
-      setIsInCart(!!productInCart);
-      
-      if (productInCart) {
-        setQuantity(productInCart.quantity || 1);
-      }
-    } catch (err) {
-      console.error("Error checking cart status:", err);
-    }
-  };
+  }, [reviews, userNames, token]);
 
   // Handle adding product to cart
   const handleAddToCart = async () => {
@@ -688,36 +333,13 @@ export default function ProductDetailPage({
       // If product is currently saved for later, remove it before adding to cart
       if (isSaved && token) {
         try {
-          const response = await fetch(`${baseUrl}/products/savedforlater/toggle`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              userId,
-              productId: product._id
-            })
-          });
-          
-          if (response.ok) {
-            setIsSaved(false);
-            console.log("Removed from saved items before adding to cart");
-          }
+          await ProductService.toggleSaveForLater(userId, product._id, token);
+          setIsSaved(false);
+          console.log("Removed from saved items before adding to cart");
         } catch (error) {
           console.error("Failed to remove from saved items:", error);
           // Continue with cart addition even if this fails
         }
-      }
-      
-      // Check if product is null before accessing its properties
-      if (!product) {
-        throw new Error("Product data is missing");
-      }
-      
-      // Check if product is null before accessing its properties
-      if (!product) {
-        throw new Error("Product data is missing");
       }
       
       // Check if product is null before accessing its properties
@@ -741,12 +363,12 @@ export default function ProductDetailPage({
         throw new Error("Authentication token is missing");
       }
       
-      await addToCart(userId, cartProduct, token);
+      await ProductService.addToCart(userId, cartProduct, token);
       
       // Update cart status
       setIsInCart(true);
       
-      toast.success("Product added to cart", {
+      toast.success("Added to cart", {
         action: {
           label: "View Cart",
           onClick: () => router.push("/cart"),
@@ -757,7 +379,7 @@ export default function ProductDetailPage({
       toast.error(
         err instanceof Error
           ? err.message
-          : "Failed to add product to cart. Please try again."
+          : "Failed to add to cart"
       );
     } finally {
       setIsAddingToCart(false);
@@ -769,7 +391,7 @@ export default function ProductDetailPage({
     e.preventDefault();
     
     if (!userId) {
-      toast.error("Please log in to submit a review", {
+      toast.error("Please log in to write a review", {
         action: {
           label: "Login",
           onClick: () => router.push("/login"),
@@ -781,12 +403,12 @@ export default function ProductDetailPage({
     try {
       // Validate required fields according to your Review schema
       if (!newReview.title?.trim()) {
-        toast.error("Please provide a review title");
+        toast.error("Review title is required");
         return;
       }
       
       if (!newReview.comment?.trim()) {
-        toast.error("Please provide a review comment");
+        toast.error("Review comment is required");
         return;
       }
       
@@ -826,37 +448,12 @@ export default function ProductDetailPage({
         JSON.stringify([optimisticReview, ...storedReviews])
       );
       
-      // Your backend expects POST to /reviews
-      const response = await fetch(`${baseUrl}/reviews`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(reviewData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error("Review submission failed:", errorData);
-        
-        // Remove the optimistic review on error
-        setReviews(prevReviews => 
-          prevReviews.filter(review => review._id !== optimisticReview._id)
-        );
-        
-        // Update local storage to remove failed review
-        const currentStored = JSON.parse(localStorage.getItem(`product-reviews-${productId}`) || "[]");
-        localStorage.setItem(
-          `product-reviews-${productId}`, 
-          JSON.stringify(currentStored.filter((r: Review) => r._id !== optimisticReview._id))
-        );
-        
-        throw new Error(errorData.message || "Failed to submit review");
+      if (!token) {
+        throw new Error("Authentication token is missing");
       }
       
-      const responseData = await response.json();
-      console.log("Review submission response:", responseData);
+      // Submit the review to the server
+      const responseData = await ProductService.submitReview(reviewData, token);
       
       // Reset review form
       setNewReview({
@@ -867,17 +464,34 @@ export default function ProductDetailPage({
       
       setShowReviewForm(false);
       
-      toast.success(responseData.message || "Review submitted successfully");
+      toast.success(responseData.message || "Review submitted");
       
       // Refetch reviews and product to update rating
-      fetchReviews(productId);
-      fetchProduct(productId, userId, token);
+      const updatedReviews = await ProductService.fetchReviews(productId, token);
+      setReviews(updatedReviews);
+      
+      const updatedProduct = await ProductService.fetchProduct(productId, userId, token);
+      setProduct(updatedProduct);
+      
     } catch (err) {
       console.error("Error submitting review:", err);
+      
+      // Remove the optimistic review on error
+      setReviews(prevReviews => 
+        prevReviews.filter(review => !review._id.startsWith('temp-'))
+      );
+      
+      // Update local storage to remove failed review
+      const currentStored = JSON.parse(localStorage.getItem(`product-reviews-${productId}`) || "[]");
+      localStorage.setItem(
+        `product-reviews-${productId}`, 
+        JSON.stringify(currentStored.filter((r: Review) => !r._id.startsWith('temp-')))
+      );
+      
       toast.error(
         err instanceof Error
           ? err.message
-          : "Failed to submit review. Please try again."
+          : "Failed to submit review"
       );
     }
   };
@@ -885,7 +499,7 @@ export default function ProductDetailPage({
   // Toggle product favorite status
   const handleToggleFavorite = async () => {
     if (!userId) {
-      toast.error("Please log in to save favorites", {
+      toast.error("Please log in to manage favorites", {
         action: {
           label: "Login",
           onClick: () => router.push("/login"),
@@ -900,37 +514,25 @@ export default function ProductDetailPage({
       // Optimistic UI update
       setIsFavorite(!isFavorite);
       
-      const response = await fetch(`${baseUrl}/products/favorite/toggle`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId,
-          productId,
-        }),
-      });
-      
-      if (!response.ok) {
-        // Revert optimistic update on error
-        setIsFavorite(isFavorite);
-        throw new Error("Failed to update favorite status");
+      if (!token || !productId) {
+        throw new Error("Missing data for favorite operation");
       }
       
-      const data = await response.json();
+      await ProductService.toggleFavorite(userId, productId, token);
       
       toast.success(
         isFavorite ? "Removed from favorites" : "Added to favorites"
       );
       
       // Refetch product to update favorite count
-      fetchProduct(productId, userId, token);
+      const updatedProduct = await ProductService.fetchProduct(productId, userId, token);
+      setProduct(updatedProduct);
+      
     } catch (err) {
       toast.error(
         err instanceof Error
           ? err.message
-          : "Failed to update favorite status. Please try again."
+          : "Failed to update favorite status"
       );
       
       // Revert optimistic update on error
@@ -958,37 +560,25 @@ export default function ProductDetailPage({
       // Optimistic UI update
       setIsSaved(!isSaved);
       
-      const response = await fetch(`${baseUrl}/products/savedforlater/toggle`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId,
-          productId,
-        }),
-      });
-      
-      if (!response.ok) {
-        // Revert optimistic update on error
-        setIsSaved(isSaved);
-        throw new Error("Failed to update saved status");
+      if (!token || !productId) {
+        throw new Error("Missing data for save operation");
       }
       
-      const data = await response.json();
+      await ProductService.toggleSaveForLater(userId, productId, token);
       
       toast.success(
         isSaved ? "Removed from saved items" : "Saved for later"
       );
       
       // Refetch product to update saved count
-      fetchProduct(productId, userId, token);
+      const updatedProduct = await ProductService.fetchProduct(productId, userId, token);
+      setProduct(updatedProduct);
+      
     } catch (err) {
       toast.error(
         err instanceof Error
           ? err.message
-          : "Failed to update saved status. Please try again."
+          : "Failed to update saved status"
       );
       
       // Revert optimistic update on error
@@ -998,22 +588,26 @@ export default function ProductDetailPage({
     }
   };
 
-  // Share functionality - Updated to match the requested format
+  // Share functionality
   const handleShare = async () => {
     if (isSharing) return;
     setIsSharing(true);
     
     try {
+      if (!product) {
+        throw new Error("Product data is missing");
+      }
+      
       // Use Web Share API if available
       if (navigator.share) {
         await navigator.share({
           title: product.title,
-          text: product.desc || `Check out this ${product.title}`,
+          text: product.desc || `Check out this product: ${product.title}`,
           url: `${window.location.origin}/shop/${product._id}`
         });
         
         toast("Shared successfully", {
-          description: "Product has been shared"
+          description: "Product shared"
         });
       } else {
         // Fallback: Copy link to clipboard
@@ -1052,7 +646,7 @@ export default function ProductDetailPage({
       </div>
     );
   }
-
+  
   // Error state
   if (error) {
     return (
@@ -1077,7 +671,7 @@ export default function ProductDetailPage({
       </div>
     );
   }
-
+  
   // No product state
   if (!product) {
     return (
@@ -1095,7 +689,7 @@ export default function ProductDetailPage({
           </div>
           <h2 className="text-xl font-medium mb-2">Product Not Found</h2>
           <p className="text-muted-foreground mb-6">
-            The product you're looking for doesn't exist or has been removed.
+            We couldn't find the product you're looking for.
           </p>
           <Button asChild>
             <Link href="/shop">Browse Products</Link>
@@ -1109,24 +703,27 @@ export default function ProductDetailPage({
   const availableSizes = product.size.split(",").map(s => s.trim());
   const availableColors = product.color.split(",").map(c => c.trim());
 
-  // Get stock status
-  const stockStatus = product.inStock
-    ? product.quantity <= product.lowStockThreshold
-      ? {
-          badge: "secondary",
-          text: "Low Stock",
-          icon: <AlertTriangle className="h-4 w-4" />,
-        }
+  // Get stock status with hardcoded text instead of translations
+  const getStockStatus = (product: Product) => {
+    return product.inStock
+      ? product.quantity <= product.lowStockThreshold
+        ? {
+            badge: "secondary",
+            text: "Low Stock",
+            icon: <AlertTriangle className="h-4 w-4" />,
+          }
+        : {
+            badge: "default",
+            text: "In Stock",
+            icon: <Check className="h-4 w-4" />,
+          }
       : {
-          badge: "default",
-          text: "In Stock",
-          icon: <Check className="h-4 w-4" />,
-        }
-    : {
-        badge: "destructive",
-        text: "Out of Stock",
-        icon: <AlertTriangle className="h-4 w-4" />,
-      };
+          badge: "destructive",
+          text: "Out of Stock",
+          icon: <AlertTriangle className="h-4 w-4" />,
+        };
+  };
+  const stockStatus = getStockStatus(product);
 
   return (
     <div className="container py-8">
@@ -1142,7 +739,9 @@ export default function ProductDetailPage({
           Shop
         </Link>
         <span className="text-muted-foreground">/</span>
-        <span className="truncate max-w-[200px]">{product.title}</span>
+        <span className="truncate max-w-[200px]">
+          {ProductService.getLocalizedField(product, 'title', locale)}
+        </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1151,7 +750,7 @@ export default function ProductDetailPage({
           <Tabs defaultValue="image" className="w-full">
             <TabsList className="mb-4">
               <TabsTrigger value="image">Images</TabsTrigger>
-              {product.model3d && (
+              {product?.model3d && (
                 <TabsTrigger value="3d">3D Model</TabsTrigger>
               )}
             </TabsList>
@@ -1159,8 +758,8 @@ export default function ProductDetailPage({
             <TabsContent value="image" className="mt-0">
               <div className="aspect-square relative overflow-hidden rounded-lg border bg-white">
                 <Image
-                  src={product.img || "/placeholder-product.png"}
-                  alt={product.title}
+                  src={product?.img || "/placeholder-product.png"}
+                  alt={product?.title}
                   fill
                   className="object-contain p-4"
                   sizes="(max-width: 768px) 100vw, 50vw"
@@ -1169,13 +768,13 @@ export default function ProductDetailPage({
               </div>
             </TabsContent>
 
-            {product.model3d && (
+            {product?.model3d && (
               <TabsContent value="3d" className="mt-0">
                 <div className="aspect-square relative overflow-hidden rounded-lg border bg-white">
                   {product.model3dFormat === 'sketchfab' ? (
                     <SketchfabViewer
                       modelId={product.model3d}
-                      title={product.title}
+                      title={`3D model of ${product.title}`}
                       height="100%"
                       width="100%"
                     />
@@ -1219,23 +818,27 @@ export default function ProductDetailPage({
         {/* Product Information */}
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold">{product.title}</h1>
+            <h1 className="text-3xl font-bold">
+              {ProductService.getLocalizedField(product, 'title', locale)}
+            </h1>
             <div className="flex items-center gap-4 mt-2">
               <div className="flex items-center">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Star
                     key={star}
                     className={`h-4 w-4 ${
-                      (product.averageRating || 0) >= star
+                      (product?.averageRating || 0) >= star
                         ? "text-yellow-400 fill-yellow-400"
                         : "text-muted"
                     }`}
                   />
                 ))}
                 <span className="ml-2 text-sm text-muted-foreground">
-                  {product.averageRating?.toFixed(1) || "No ratings"}
-                  {product.reviewCount
-                    ? ` (${product.reviewCount} reviews)`
+                  {product?.averageRating?.toFixed(1) || "No ratings yet"}
+                  {product?.reviewCount
+                    ? ` (${product.reviewCount} ${product.reviewCount === 1 
+                        ? "review" 
+                        : "reviews"})`
                     : ""}
                 </span>
               </div>
@@ -1243,20 +846,23 @@ export default function ProductDetailPage({
           </div>
 
           <div>
+            {/* Use direct price formatting without translation */}
             <p className="text-2xl font-semibold">
-              ${product.price.toFixed(2)}
+              ${product?.price?.toFixed(2)}
             </p>
           </div>
 
           <Separator />
 
           <div>
-            <p className="text-muted-foreground mb-4">{product.desc}</p>
+            <p className="text-muted-foreground mb-4">
+              {ProductService.getLocalizedField(product, 'desc', locale)}
+            </p>
 
             <div className="flex items-center gap-2 mb-4">
               <Badge
                 variant={
-                  stockStatus.badge as
+                  stockStatus?.badge as
                     | "default"
                     | "secondary"
                     | "destructive"
@@ -1264,12 +870,12 @@ export default function ProductDetailPage({
                 }
               >
                 <span className="flex items-center gap-1">
-                  {stockStatus.icon}
-                  {stockStatus.text}
+                  {stockStatus?.icon}
+                  {stockStatus?.text}
                 </span>
               </Badge>
 
-              {product.categories && product.categories.length > 0 && (
+              {product?.categories && product.categories.length > 0 && (
                 <div className="flex gap-1 flex-wrap">
                   {product.categories.map((category, index) => (
                     <Badge key={index} variant="outline">
@@ -1284,7 +890,7 @@ export default function ProductDetailPage({
           <Separator />
 
           {/* Size Selector */}
-          {availableSizes.length > 0 && (
+          {availableSizes?.length > 0 && (
             <div className="space-y-4">
               <div>
                 <Label htmlFor="size" className="text-base">
@@ -1323,7 +929,7 @@ export default function ProductDetailPage({
           )}
 
           {/* Color Selector */}
-          {availableColors.length > 0 && (
+          {availableColors?.length > 0 && (
             <div className="space-y-4">
               <div>
                 <Label htmlFor="color" className="text-base">
@@ -1381,14 +987,14 @@ export default function ProductDetailPage({
                 id="quantity"
                 type="number"
                 min="1"
-                max={product.quantity}
+                max={product?.quantity}
                 className="h-9 w-16 rounded-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 value={quantity}
                 onChange={(e) => {
                   const value = parseInt(e.target.value);
                   if (isNaN(value) || value < 1) {
                     setQuantity(1);
-                  } else if (value > product.quantity) {
+                  } else if (value > product?.quantity) {
                     setQuantity(product.quantity);
                   } else {
                     setQuantity(value);
@@ -1400,14 +1006,14 @@ export default function ProductDetailPage({
                 size="icon"
                 className="h-9 w-9 rounded-l-none"
                 onClick={incrementQuantity}
-                disabled={quantity >= product.quantity}
+                disabled={quantity >= product?.quantity}
               >
                 <Plus className="h-4 w-4" />
                 <span className="sr-only">Increase</span>
               </Button>
 
               <span className="ml-2 text-sm text-muted-foreground">
-                {product.quantity} available
+                {product?.quantity} available
               </span>
             </div>
           </div>
@@ -1415,7 +1021,7 @@ export default function ProductDetailPage({
           <div className="flex flex-col sm:flex-row gap-2 pt-4">
             <Button
               className={`flex-1 ${isInCart ? 'bg-green-600 hover:bg-green-700 border-green-500' : ''}`}
-              disabled={!product.inStock || isAddingToCart}
+              disabled={!product?.inStock || isAddingToCart}
               onClick={handleAddToCart}
             >
               {isAddingToCart ? (
@@ -1443,6 +1049,7 @@ export default function ProductDetailPage({
                 className={isFavorite ? "text-red-500 hover:bg-red-50" : "hover:bg-red-50"}
                 onClick={handleToggleFavorite}
                 disabled={isTogglingFavorite}
+                aria-label={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
               >
                 {isTogglingFavorite ? (
                   <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -1466,6 +1073,7 @@ export default function ProductDetailPage({
                 className={isSaved ? "text-blue-500 hover:bg-blue-50" : "hover:bg-blue-50"}
                 onClick={handleToggleSaveForLater}
                 disabled={isTogglingBookmark}
+                aria-label={isSaved ? "Remove from Saved" : "Save for Later"}
               >
                 {isTogglingBookmark ? (
                   <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -1489,6 +1097,7 @@ export default function ProductDetailPage({
                 onClick={handleShare}
                 disabled={isSharing}
                 className="hover:bg-violet-50"
+                aria-label="Share"
               >
                 {isSharing ? (
                   <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -1508,13 +1117,13 @@ export default function ProductDetailPage({
           <TabsList>
             <TabsTrigger value="description">Description</TabsTrigger>
             <TabsTrigger value="reviews">
-              Reviews {product.reviewCount ? `(${product.reviewCount})` : ""}
+              Reviews {product?.reviewCount ? `(${product.reviewCount})` : ""}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="description" className="mt-6">
             <div className="prose max-w-none">
-              <p>{product.desc}</p>
+              <p>{ProductService.getLocalizedField(product, 'desc', locale)}</p>
             </div>
           </TabsContent>
 
@@ -1525,14 +1134,14 @@ export default function ProductDetailPage({
                 <div className="md:w-1/3">
                   <div className="flex flex-col items-center p-4 border rounded-lg">
                     <h3 className="text-3xl font-bold">
-                      {product.averageRating?.toFixed(1) || "0.0"}
+                      {product?.averageRating?.toFixed(1) || "0.0"}
                     </h3>
                     <div className="flex items-center my-2">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <Star
                           key={star}
                           className={`h-5 w-5 ${
-                            (product.averageRating || 0) >= star
+                            (product?.averageRating || 0) >= star
                               ? "text-yellow-400 fill-yellow-400"
                               : "text-muted"
                           }`}
@@ -1540,8 +1149,7 @@ export default function ProductDetailPage({
                       ))}
                     </div>
                     <p className="text-muted-foreground">
-                      Based on {product.reviewCount || 0}{" "}
-                      {product.reviewCount === 1 ? "review" : "reviews"}
+                      Based on {product?.reviewCount || 0} {product?.reviewCount === 1 ? "review" : "reviews"}
                     </p>
                   </div>
                 </div>
@@ -1636,7 +1244,7 @@ export default function ProductDetailPage({
                               >
                                 Cancel
                               </Button>
-                              <Button type="submit">Submit Review</Button>
+                              <Button type="submit">Submit</Button>
                             </div>
                           </form>
                         </CardContent>
@@ -1682,7 +1290,9 @@ export default function ProductDetailPage({
                             <p className="font-medium text-base">
                               {getUserDisplayName(review)}
                               {!getUserDisplayName(review) && 
-                                <span className="text-xs text-muted-foreground ml-1">(User info loading...)</span>
+                                <span className="text-xs text-muted-foreground ml-1">
+                                  (User info loading...)
+                                </span>
                               }
                             </p>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,14 +29,16 @@ export default function UserHeader() {
   const { theme, setTheme } = useTheme()
   const { t, locale, changeLocale } = useTranslation()
   const [imgSrc, setImgSrc] = useState("/lloo.jpeg")
-  const [logoSrc, setLogoSrc] = useState("/logo.png")
+  const router = useRouter()
 
   const routes = [
-    { name: t("home"), path: "/" },
-    { name: t("shop"), path: "/shop" },
-    { name: t("categories"), path: "/categories" },
-    { name: t("new_arrivals"), path: "/new-arrivals" },
-    { name: t("sale"), path: "/sale" },
+    { name: t("common.shop"), path: "/shop" },
+    { name: t("navigation.productComparison"), path: "/compare" },
+    { name: t("common.favorites"), path: "/favorites" },
+    { name: t("navigation.roomPlanner"), path: "/room-planner" },
+    { name: t("navigation.saveForLater"), path: "/saved-for-later" },
+    { name: t("order_history"), path: "/orders" },
+    { name: t("common.cart"), path: "/cart" },
   ]
   
   // Function to retrieve the user ID from localStorage
@@ -58,19 +60,24 @@ export default function UserHeader() {
 
   // Handle logout by clearing localStorage
   const handleLogout = () => {
-    try {
-      localStorage.removeItem("userId")
-      setIsLoggedIn(false)
-      // Call your auth provider's logout if needed
-      if (logout) logout()
-    } catch (err) {
-      console.error("Error logging out:", err)
+    // Show confirmation dialog
+    if (window.confirm(t("logout_confirmation") || "Are you sure you want to log out?")) {
+      try {
+        localStorage.removeItem("userId")
+        setIsLoggedIn(false)
+        // Call your auth provider's logout if needed
+        if (logout) logout()
+        // Redirect to login page
+        router.push("/login")
+      } catch (err) {
+        console.error("Error logging out:", err)
+      }
     }
   }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
+      <div className="container flex h-24 items-center justify-between">
         <div className="flex items-center gap-6 md:gap-8 lg:gap-10">
           <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
@@ -83,14 +90,14 @@ export default function UserHeader() {
               <div className="flex flex-col h-full">
                 {/* Logo section with reduced size and improved scaling */}
                 <div className="pt-8 pb-6 flex justify-center border-b border-slate-100 dark:border-slate-700">
-                  <div className="rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(11,48,147,0.05)] w-auto h-auto flex items-center justify-center">
+                  <div className="rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(11,48,147,0.05)] w-72 h-56 flex items-center justify-center">
                     {/* Simplified img tag with better size control */}
                     <img
                       src={imgSrc}
                       alt="Kadéa Design Logo"
                       style={{ 
-                        maxWidth: '120px',  
-                        maxHeight: '60px',
+                        maxWidth: '95%',  
+                        maxHeight: '95%',
                         objectFit: 'contain'
                       }}
                       onError={() => setImgSrc("/fallback-logo.png")}
@@ -176,15 +183,7 @@ export default function UserHeader() {
                           {t("favorites")}
                         </Link>
                       </SheetClose>
-                      <SheetClose asChild>
-                        <Link
-                          href="/profile"
-                          className="flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted"
-                        >
-                          <Settings className="h-5 w-5" />
-                          {t("settings")}
-                        </Link>
-                      </SheetClose>
+                      {/* Profile link removed */}
                       <button
                         onClick={() => {
                           setIsMenuOpen(false)
@@ -221,18 +220,18 @@ export default function UserHeader() {
             </SheetContent>
           </Sheet>
 
-          {/* Main navbar logo with smaller dimensions */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 overflow-hidden flex items-center justify-center">
+          {/* Main navbar logo with larger dimensions */}
+          <Link href="/" className="flex items-center">
+            <div className="w-32 h-24 overflow-hidden flex items-center justify-center">
               <img
-                src={logoSrc}
+                src={imgSrc}
                 alt="Logo"
                 style={{ 
                   maxWidth: '100%',
                   maxHeight: '100%',
                   objectFit: 'contain'
                 }}
-                onError={() => setLogoSrc("/fallback-logo.png")}
+                onError={() => setImgSrc("/fallback-logo.png")}
               />
             </div>
           </Link>
@@ -326,12 +325,7 @@ export default function UserHeader() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{t("my_account")}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
-                    <User className="h-4 w-4" />
-                    {t("profile")}
-                  </Link>
-                </DropdownMenuItem>
+                {/* Profile link removed */}
                 <DropdownMenuItem asChild>
                   <Link href="/orders" className="flex items-center gap-2 cursor-pointer">
                     <Clock className="h-4 w-4" />

@@ -31,13 +31,13 @@ export default function ViewTransition({ isTransitioning, onTransitionComplete }
 
   return (
     <div
-      className="fixed inset-0 bg-white z-50 pointer-events-none transition-opacity duration-400 flex items-center justify-center"
+      className="fixed inset-0 bg-white dark:bg-gray-900 z-50 pointer-events-none transition-opacity duration-400 flex items-center justify-center"
       style={{ opacity }}
     >
       <div className="flex flex-col items-center">
         <div className="mb-4">
           <svg
-            className="animate-spin h-10 w-10 text-blue-600"
+            className="animate-spin h-10 w-10 text-blue-600 dark:text-blue-400"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -50,7 +50,9 @@ export default function ViewTransition({ isTransitioning, onTransitionComplete }
             ></path>
           </svg>
         </div>
-        <div className="text-2xl font-bold text-blue-600">Switching to {isTransitioning ? "3D" : "2D"} View</div>
+        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+          Switching to {isTransitioning ? "3D" : "2D"} View
+        </div>
       </div>
     </div>
   )

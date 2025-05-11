@@ -12,13 +12,13 @@ import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useTranslation } from "@/lib/i18n/client"
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1"
 
-  
-
 export default function FavoritesPage() {
   const router = useRouter()
+  const { t } = useTranslation()
   const [products, setProducts] = useState<any[]>([])
   const [viewType, setViewType] = useState("grid")
   const [currentPage, setCurrentPage] = useState(1)
@@ -39,6 +39,7 @@ export default function FavoritesPage() {
       return ""
     }
   }
+  
   // This working function checks if a product is in the cart
   async function checkIfInCart(userId: string, productId: string, token: string): Promise<boolean> {
     try {
@@ -73,7 +74,6 @@ export default function FavoritesPage() {
     }
   }
 
-
   // Load user ID on component mount
   useEffect(() => {
     const storedUserId = getUserIdFromLocalStorage()
@@ -81,15 +81,15 @@ export default function FavoritesPage() {
 
     // Check if user is logged in
     if (!storedUserId) {
-      toast.error("Please log in to view your favorites", {
+      toast.error(t("favorite.loginRequired"), {
         action: {
-          label: "Login",
+          label: t("common.login"),
           onClick: () => router.push("/login")
         }
       })
       setIsLoading(false)
     }
-  }, [router])
+  }, [router, t])
 
   // Normalize product data to ensure we have consistent stock status
   const normalizeProducts = async (products: any[], userId: string, token: string) => {
@@ -150,7 +150,7 @@ export default function FavoritesPage() {
       if (!response.ok) {
         const errorData = await response.text()
         console.error("Error response:", errorData)
-        throw new Error(`Failed to fetch favorites: ${response.status}`)
+        throw new Error(`${t("favorite.fetchError")}: ${response.status}`)
       }
 
       const data = await response.json()
@@ -170,7 +170,7 @@ export default function FavoritesPage() {
     } catch (error: any) {
       console.error("Error fetching favorites:", error)
       setFetchError(error.message)
-      toast.error("Failed to load your favorites", {
+      toast.error(t("favorite.loadError"), {
         description: error.message
       })
     } finally {
@@ -194,7 +194,7 @@ export default function FavoritesPage() {
 
   const toggleFavorite = async (productId: string) => {
     if (!userId) {
-      toast.error("Please log in to manage favorites")
+      toast.error(t("favorite.loginToManage"))
       return
     }
 
@@ -213,7 +213,7 @@ export default function FavoritesPage() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to update favorite status")
+        throw new Error(t("favorite.updateError"))
       }
 
       const data = await response.json()
@@ -221,7 +221,7 @@ export default function FavoritesPage() {
       // Remove product from local state to provide immediate feedback
       setProducts(products.filter(product => product._id !== productId))
       
-      toast.success("Item removed from favorites")
+      toast.success(t("favorite.itemRemoved"))
       
       // If removing this product makes the page empty and there are previous pages, go back
       if (products.length === 1 && currentPage > 1) {
@@ -232,13 +232,13 @@ export default function FavoritesPage() {
       }
     } catch (error) {
       console.error("Error toggling favorite:", error)
-      toast.error("Failed to update favorite status")
+      toast.error(t("favorite.updateError"))
     }
   }
 
   const addToCart = async (productId: string) => {
     if (!userId) {
-      toast.error("Please log in to add items to cart")
+      toast.error(t("auth.loginRequiredCart"))
       return
     }
     
@@ -284,7 +284,7 @@ export default function FavoritesPage() {
         if (!createCartResponse.ok) {
           const errorData = await createCartResponse.text()
           console.error("Error creating cart:", errorData)
-          throw new Error("Failed to create cart")
+          throw new Error(t("cart.createError"))
         }
         
         const newCart = await createCartResponse.json()
@@ -297,7 +297,7 @@ export default function FavoritesPage() {
       } else {
         const errorData = await cartResponse.text()
         console.error("Error checking cart:", errorData)
-        throw new Error("Failed to check cart status")
+        throw new Error(t("cart.checkError"))
       }
       
       // Add product to cart
@@ -308,7 +308,7 @@ export default function FavoritesPage() {
         const productToAdd = products.find(p => p._id === productId)
         
         if (!productToAdd) {
-          throw new Error("Product not found in favorites")
+          throw new Error(t("favorite.productNotFound"))
         }
         
         // Format according to the cart/add endpoint expectations
@@ -339,7 +339,7 @@ export default function FavoritesPage() {
         if (!addResponse.ok) {
           const errorData = await addResponse.text()
           console.error("Error adding to cart:", errorData)
-          throw new Error("Failed to add product to cart")
+          throw new Error(t("cart.addError"))
         }
         
         const result = await addResponse.json()
@@ -350,16 +350,16 @@ export default function FavoritesPage() {
           p._id === productId ? { ...p, isInCart: true } : p
         ))
         
-        toast.success("Item added to cart", {
+        toast.success(t("cart.itemAdded"), {
           action: {
-            label: "View Cart",
+            label: t("cart.viewCart"),
             onClick: () => router.push("/cart")
           }
         })
       }
     } catch (error: any) {
       console.error("Error adding to cart:", error)
-      toast.error(error.message || "Failed to add item to cart")
+      toast.error(error.message || t("cart.addError"))
     } finally {
       setIsAddingToCart(null)
     }
@@ -368,7 +368,7 @@ export default function FavoritesPage() {
   const clearAllFavorites = async () => {
     if (!userId || products.length === 0) return
     
-    if (!confirm("Are you sure you want to remove all items from your favorites?")) {
+    if (!confirm(t("favorite.confirmClearAll"))) {
       return
     }
     
@@ -393,10 +393,10 @@ export default function FavoritesPage() {
       await Promise.all(promises)
       
       setProducts([])
-      toast.success("All items removed from favorites")
+      toast.success(t("favorite.allItemsRemoved"))
     } catch (error) {
-      console.error("Error clearing favorites:", error)
-      toast.error("Failed to clear favorites")
+      console.error("Error clearing favorite:", error)
+      toast.error(t("favorite.clearError"))
     } finally {
       setIsLoading(false)
     }
@@ -418,7 +418,7 @@ export default function FavoritesPage() {
     favoritedBy?: { userId: string; addedAt: string }[];
   }
 
-  // Updated getStockStatus function that properly handles all edge cases
+  // Updated getStockStatus function that uses hardcoded values instead of translations
   const getStockStatus = (product: Product) => {
     // Case 1: Product explicitly marked as out of stock in the database
     if (product.inStock === false) {
@@ -459,7 +459,7 @@ export default function FavoritesPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
             <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-          <h2 className="text-xl font-medium mb-2">Loading your favorites...</h2>
+          <h2 className="text-xl font-medium mb-2">{t("favorite.loading")}</h2>
         </div>
       </div>
     )
@@ -469,17 +469,17 @@ export default function FavoritesPage() {
     <div className="container py-8">
       <div className="flex items-center gap-2 mb-6">
         <Link href="/" className="text-muted-foreground hover:text-foreground">
-          Home
+          {t("common.home")}
         </Link>
         <span className="text-muted-foreground">/</span>
-        <span>Favorites</span>
+        <span>{t("favorites")}</span>
       </div>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold">My Favorites</h1>
+          <h1 className="text-3xl font-bold">{t("favorite.title")}</h1>
           <p className="text-muted-foreground mt-1">
-            {products.length} {products.length === 1 ? "item" : "items"}
+            {products.length} {products.length === 1 ? t("common.item") : t("common.items")}
           </p>
         </div>
 
@@ -488,11 +488,11 @@ export default function FavoritesPage() {
             <TabsList className="grid w-[120px] grid-cols-2">
               <TabsTrigger value="grid" className="flex items-center gap-2">
                 <Grid className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:inline-block">Grid</span>
+                <span className="sr-only sm:not-sr-only sm:inline-block">{t("common.grid")}</span>
               </TabsTrigger>
               <TabsTrigger value="list" className="flex items-center gap-2">
                 <List className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:inline-block">List</span>
+                <span className="sr-only sm:not-sr-only sm:inline-block">{t("common.list")}</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -503,7 +503,7 @@ export default function FavoritesPage() {
               onClick={clearAllFavorites}
               disabled={isLoading}
             >
-              Clear All
+              {t("favorite.clearAll")}
             </Button>
           )}
         </div>
@@ -511,14 +511,14 @@ export default function FavoritesPage() {
 
       {fetchError && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4 mb-6">
-          <p className="text-red-700 dark:text-red-400">Error: {fetchError}</p>
+          <p className="text-red-700 dark:text-red-400">{t("common.error")}: {fetchError}</p>
           <Button 
             variant="outline" 
             size="sm" 
             className="mt-2"
             onClick={() => fetchFavorites(currentPage)}
           >
-            Try Again
+            {t("common.tryAgain")}
           </Button>
         </div>
       )}
@@ -534,12 +534,12 @@ export default function FavoritesPage() {
             <div className="rounded-full bg-muted p-6 mb-4">
               <Heart className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h2 className="text-xl font-medium mb-2">Please log in to view your favorites</h2>
+            <h2 className="text-xl font-medium mb-2">{t("favorite.pleaseLogin")}</h2>
             <p className="text-muted-foreground max-w-md mb-6">
-              Sign in to your account to see and manage your favorite products.
+              {t("favorite.loginDescription")}
             </p>
             <Button asChild>
-              <Link href="/login">Log In</Link>
+              <Link href="/login">{t("common.login")}</Link>
             </Button>
           </motion.div>
         ) : products.length === 0 ? (
@@ -552,12 +552,12 @@ export default function FavoritesPage() {
             <div className="rounded-full bg-muted p-6 mb-4">
               <Heart className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h2 className="text-xl font-medium mb-2">Your favorites list is empty</h2>
+            <h2 className="text-xl font-medium mb-2">{t("favorite.emptyList")}</h2>
             <p className="text-muted-foreground max-w-md mb-6">
-              Browse our collection and add items to your favorites to keep track of products you love.
+              {t("favorite.emptyDescription")}
             </p>
             <Button asChild>
-              <Link href="/shop">Continue Shopping</Link>
+              <Link href="/shop">{t("common.continueShopping")}</Link>
             </Button>
           </motion.div>
         ) : (
@@ -565,8 +565,8 @@ export default function FavoritesPage() {
             <Tabs defaultValue={viewType} value={viewType} className="w-full">
               <div className="hidden">
                 <TabsList>
-                  <TabsTrigger value="grid">Grid</TabsTrigger>
-                  <TabsTrigger value="list">List</TabsTrigger>
+                  <TabsTrigger value="grid">{t("common.grid")}</TabsTrigger>
+                  <TabsTrigger value="list">{t("common.list")}</TabsTrigger>
                 </TabsList>
               </div>
               
@@ -598,7 +598,7 @@ export default function FavoritesPage() {
                               fill
                               className="object-cover"
                             />
-                            {isOnSale && <Badge className="absolute top-2 left-2">Sale</Badge>}
+                            {isOnSale && <Badge className="absolute top-2 left-2">{t("product.sale")}</Badge>}
                             {isInCart && (
                               <Badge className="absolute bottom-2 left-2 bg-green-600 hover:bg-green-700">
                                 In Cart
@@ -620,11 +620,13 @@ export default function FavoritesPage() {
                               </h3>
                             </Link>
                             <p className="text-sm text-muted-foreground mb-2">
-                              {product.categories?.[0] || "Product"}
+                              {product.categories?.[0] || t("product.defaultCategory")}
                             </p>
                             <div className="flex justify-between items-center">
                               <div className="flex items-baseline gap-2">
-                                <span className="font-semibold">${parseFloat(displayPrice).toFixed(2)}</span>
+                                <span className="font-semibold">
+                                  ${parseFloat(displayPrice).toFixed(2)}
+                                </span>
                                 {originalPrice && (
                                   <span className="text-sm text-muted-foreground line-through">
                                     ${parseFloat(originalPrice).toFixed(2)}
@@ -650,7 +652,7 @@ export default function FavoritesPage() {
                                 ) : (
                                   <ShoppingCart className="h-4 w-4 mr-2" />
                                 )}
-                                {isInCart ? "Already In Cart" : "Add to Cart"}
+                                {isInCart ? "View in Cart" : "Add to Cart"}
                               </Button>
                               <Button
                                 variant="outline"
@@ -681,7 +683,7 @@ export default function FavoritesPage() {
                     const dateAdded = product.favoritedBy?.find((f: { userId: string; addedAt: string }) => f.userId === userId)?.addedAt;
                     const formattedDate = dateAdded ? 
                       new Date(dateAdded).toLocaleDateString() : 
-                      "Recently";
+                      t("favorite.recently");
                     const isInCart = product.isInCart;
 
                     return (
@@ -703,7 +705,7 @@ export default function FavoritesPage() {
                                 className="object-cover"
                               />
                               {isOnSale && (
-                                <Badge className="absolute top-2 left-2">Sale</Badge>
+                                <Badge className="absolute top-2 left-2">{t("product.sale")}</Badge>
                               )}
                               {isInCart && (
                                 <Badge className="absolute bottom-2 left-2 bg-green-600 hover:bg-green-700">
@@ -721,7 +723,7 @@ export default function FavoritesPage() {
                                       </h3>
                                     </Link>
                                     <p className="text-sm text-muted-foreground">
-                                      {product.categories?.[0] || "Product"}
+                                      {product.categories?.[0] || t("product.defaultCategory")}
                                     </p>
                                   </div>
                                   <Button
@@ -734,7 +736,9 @@ export default function FavoritesPage() {
                                   </Button>
                                 </div>
                                 <div className="flex items-baseline gap-2 mt-2">
-                                  <span className="font-semibold">${parseFloat(displayPrice).toFixed(2)}</span>
+                                  <span className="font-semibold">
+                                    ${parseFloat(displayPrice).toFixed(2)}
+                                  </span>
                                   {originalPrice && (
                                     <span className="text-sm text-muted-foreground line-through">
                                       ${parseFloat(originalPrice).toFixed(2)}
@@ -746,7 +750,7 @@ export default function FavoritesPage() {
                                     {stockStatus}
                                   </span>
                                   <span className="text-sm text-muted-foreground">
-                                    Added {formattedDate}
+                                    {t("favorite.dateAdded", { date: formattedDate })}
                                   </span>
                                 </div>
                                 {product.desc && (
@@ -770,14 +774,14 @@ export default function FavoritesPage() {
                                   ) : (
                                     <ShoppingCart className="h-4 w-4 mr-2" />
                                   )}
-                                  {isInCart ? "Already In Cart" : "Add to Cart"}
+                                  {isInCart ? "Already in Cart" : "Move to Cart"}
                                 </Button>
                                 <Button 
                                   variant="outline" 
                                   size="sm" 
                                   onClick={() => toggleFavorite(product._id)}
                                 >
-                                  Remove
+                                  {t("common.remove")}
                                 </Button>
                               </div>
                             </CardContent>

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { Canvas, useThree } from "@react-three/fiber"
 import { OrbitControls, Grid, Environment, Text, RoundedBox, Cylinder, Box } from "@react-three/drei"
+import { useTheme } from "../../../components/contexts/theme-context"
 
 // Types
 interface Vertex {
@@ -652,7 +653,8 @@ const Furniture = ({ furniture }: { furniture: FurniturePiece }) => {
 // Camera controller with improved positioning and controls
 const CameraController = ({ room }: { room: Room }) => {
   const { camera, gl } = useThree()
-  const controlsRef = useRef<any>()
+  const controlsRef = useRef<any>(null)
+  const { theme } = useTheme()
 
   useEffect(() => {
     // Calculate room center and dimensions
@@ -700,7 +702,6 @@ const CameraController = ({ room }: { room: Room }) => {
   return (
     <OrbitControls
       ref={controlsRef}
-      args={[camera, gl.domElement]}
       enableDamping
       dampingFactor={0.1}
       minDistance={1}
@@ -715,6 +716,8 @@ const CameraController = ({ room }: { room: Room }) => {
 
 // Main 3D Room Planner component
 const RoomPlanner3D = ({ room }: RoomPlanner3DProps) => {
+  const { theme } = useTheme()
+
   return (
     <div className="w-full h-full">
       <Canvas shadows>
@@ -728,7 +731,10 @@ const RoomPlanner3D = ({ room }: RoomPlanner3DProps) => {
           shadow-mapSize-height={2048}
         />
         {/* Soft hemisphere light for better overall lighting */}
-        <hemisphereLight args={["#ffffff", "#e0e0e0", 0.3]} position={[0, 50, 0]} />
+        <hemisphereLight
+          args={[theme === "dark" ? "#202020" : "#ffffff", theme === "dark" ? "#000000" : "#e0e0e0", 0.3]}
+          position={[0, 50, 0]}
+        />
         {/* Room elements */}
         <Walls vertices={room.wallVertices} />
         {/* Furniture */}
@@ -742,13 +748,13 @@ const RoomPlanner3D = ({ room }: RoomPlanner3DProps) => {
           fadeStrength={3}
           cellSize={0.5}
           cellThickness={0.3}
-          cellColor="#a0a0a0"
+          cellColor={theme === "dark" ? "#505050" : "#a0a0a0"}
           sectionSize={2}
           sectionThickness={0.8}
-          sectionColor="#505050"
+          sectionColor={theme === "dark" ? "#707070" : "#505050"}
         />
         {/* Environment */}
-        <Environment preset="apartment" />
+        <Environment preset={theme === "dark" ? "night" : "apartment"} />
       </Canvas>
     </div>
   )

@@ -8,6 +8,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useTranslation } from "@/lib/i18n/client"
 import {
   Select,
   SelectContent,
@@ -41,29 +42,8 @@ import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
  import jsPDF from 'jspdf';
  
-// Order status options
-const orderStatuses = [
-  "All Statuses",
-  "pending",
-  "processing",
-  "shipped",
-  "delivered",
-  "cancelled",
-  "refunded"
-]
-
 // Valid status values for updating
 const validStatusValues = ["pending", "processing", "shipped", "delivered", "cancelled", "refunded"];
-
-// Time filter options
-const timeFilters = [
-  "All Time",
-  "Today",
-  "Yesterday",
-  "Last 7 Days",
-  "Last 30 Days",
-  "Last 3 Months"
-]
 
 // Define the backend Order interface to match our model
 interface OrderProduct {
@@ -248,6 +228,8 @@ const cancelOrder = async (orderId: string, reason: string) => {
 };
 
 export default function OrdersManagementPage() {
+  const { t } = useTranslation(); // Add translation hook
+  
   // State for orders and UI
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,6 +256,30 @@ export default function OrdersManagementPage() {
   // Receipt functionality state variables
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [receiptContent, setReceiptContent] = useState("");
+  
+  // Translated order statuses
+  const orderStatuses = [
+    t("admin.orders.statuses.allStatuses"),
+    t("admin.orders.statuses.pending"),
+    t("admin.orders.statuses.processing"),
+    t("admin.orders.statuses.shipped"),
+    t("admin.orders.statuses.delivered"),
+    t("admin.orders.statuses.cancelled"),
+    t("admin.orders.statuses.refunded")
+  ]
+
+  // Valid status values for updating (keep original for API calls)
+  const validStatusValues = ["pending", "processing", "shipped", "delivered", "cancelled", "refunded"];
+
+  // Translated time filters
+  const timeFilters = [
+    t("admin.orders.timeFilters.allTime"),
+    t("admin.orders.timeFilters.today"),
+    t("admin.orders.timeFilters.yesterday"),
+    t("admin.orders.timeFilters.lastSevenDays"),
+    t("admin.orders.timeFilters.lastThirtyDays"),
+    t("admin.orders.timeFilters.lastThreeMonths")
+  ]
   
   // Function to convert backend order to frontend order format
   const mapOrderData = (backendOrder: BackendOrder): Order => {
@@ -642,10 +648,13 @@ const downloadReceipt = () => {
         prev.map(order => order.id === updatedOrder.id ? updatedOrder : order)
       );
       
-      // Show success message
+      // Show success message with translation
       toast({
-        title: "Order Updated",
-        description: `Order ${currentOrder.orderNumber} status changed to ${newStatus}`,
+        title: t("admin.orders.toasts.orderUpdated"),
+        description: t("admin.orders.toasts.statusChanged", { 
+          orderNumber: currentOrder.orderNumber, 
+          status: t(`admin.orders.statuses.${newStatus}`)
+        }),
         variant: "default",
       });
       
@@ -653,8 +662,8 @@ const downloadReceipt = () => {
       setUpdateStatusDialogOpen(false);
     } catch (err) {
       toast({
-        title: "Update Failed",
-        description: err instanceof Error ? err.message : "Failed to update order status",
+        title: t("admin.orders.toasts.updateFailed"),
+        description: err instanceof Error ? err.message : t("admin.orders.toasts.failedToUpdateStatus"),
         variant: "destructive",
       });
     } finally {
@@ -668,8 +677,8 @@ const downloadReceipt = () => {
     
     if (!cancellationReason.trim()) {
       toast({
-        title: "Validation Error",
-        description: "Please provide a reason for cancellation",
+        title: t("admin.orders.toasts.validationError"),
+        description: t("admin.orders.toasts.provideCancellationReason"),
         variant: "destructive",
       });
       return;
@@ -683,10 +692,10 @@ const downloadReceipt = () => {
       // Refresh the orders to get updated data
       refreshOrders();
       
-      // Show success message
+      // Show success message with translation
       toast({
-        title: "Order Cancelled",
-        description: `Order ${currentOrder.orderNumber} has been cancelled successfully`,
+        title: t("admin.orders.toasts.orderCancelled"),
+        description: t("admin.orders.toasts.orderCancelledSuccess", { orderNumber: currentOrder.orderNumber }),
         variant: "default",
       });
       
@@ -694,8 +703,8 @@ const downloadReceipt = () => {
       setCancelOrderDialogOpen(false);
     } catch (err) {
       toast({
-        title: "Cancellation Failed",
-        description: err instanceof Error ? err.message : "Failed to cancel order",
+        title: t("admin.orders.toasts.cancellationFailed"),
+        description: err instanceof Error ? err.message : t("admin.orders.toasts.failedToCancelOrder"),
         variant: "destructive",
       });
     } finally {
@@ -752,12 +761,12 @@ const downloadReceipt = () => {
       <Toaster />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Orders</h1>
-          <p className="text-muted-foreground mt-2">Manage and process customer orders</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("admin.orders.title")}</h1>
+          <p className="text-muted-foreground mt-2">{t("admin.orders.description")}</p>
         </div>
         <Button variant="outline" onClick={refreshOrders} disabled={loading}>
           <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t("admin.orders.refresh")}
         </Button>
       </div>
 
@@ -766,22 +775,22 @@ const downloadReceipt = () => {
           <form onSubmit={handleSearch} className="relative w-full md:w-80">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by order number or customer..."
+              placeholder={t("admin.orders.searchPlaceholder")}
               className="pl-8"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <button type="submit" className="sr-only">Search</button>
+            <button type="submit" className="sr-only">{t("admin.orders.search")}</button>
           </form>
           
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full md:w-40">
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder={t("admin.orders.status")} />
             </SelectTrigger>
             <SelectContent>
               {orderStatuses.map((status) => (
                 <SelectItem key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                  {status}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -789,7 +798,7 @@ const downloadReceipt = () => {
           
           <Select value={timeFilter} onValueChange={setTimeFilter}>
             <SelectTrigger className="w-full md:w-40">
-              <SelectValue placeholder="Time" />
+              <SelectValue placeholder={t("admin.orders.time")} />
             </SelectTrigger>
             <SelectContent>
               {timeFilters.map((time) => (
@@ -808,7 +817,7 @@ const downloadReceipt = () => {
             <div className="p-6 flex justify-center items-center min-h-[200px]">
               <div className="flex flex-col items-center">
                 <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4">Loading orders...</p>
+                <p className="mt-4">{t("admin.orders.loadingOrders")}</p>
               </div>
             </div>
           ) : error ? (
@@ -820,12 +829,12 @@ const downloadReceipt = () => {
                 className="mt-4"
                 onClick={refreshOrders}
               >
-                Try Again
+                {t("admin.orders.tryAgain")}
               </Button>
             </div>
           ) : allOrders.length === 0 ? (
             <div className="p-6 text-center">
-              <p className="text-muted-foreground">No orders found</p>
+              <p className="text-muted-foreground">{t("admin.orders.noOrdersFound")}</p>
             </div>
           ) : (
             <div className="relative overflow-x-auto">
@@ -841,17 +850,16 @@ const downloadReceipt = () => {
                           onChange={handleSelectAll}
                           checked={allOrders.length > 0 && selectedOrders.length === allOrders.length}
                         />
-                        <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
+                        <label htmlFor="checkbox-all" className="sr-only">{t("admin.orders.selectAll")}</label>
                       </div>
                     </th>
-                    <th scope="col" className="px-4 py-3">Order #</th>
-                    <th scope="col" className="px-4 py-3">Date</th>
-                    <th scope="col" className="px-4 py-3">Customer</th>
-                    <th scope="col" className="px-4 py-3">Items</th>
-                    <th scope="col" className="px-4 py-3">Total</th>
-                    <th scope="col" className="px-4 py-3">Status</th>
-                    <th scope="col" className="px-4 py-3">Payment</th>
-                    <th scope="col" className="px-4 py-3 text-right">Actions</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.orders.tableHeaders.orderNumber")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.orders.tableHeaders.date")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.orders.tableHeaders.customer")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.orders.tableHeaders.items")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.orders.tableHeaders.total")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.orders.tableHeaders.status")}</th>
+                    <th scope="col" className="px-4 py-3 text-right">{t("admin.orders.tableHeaders.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -868,7 +876,7 @@ const downloadReceipt = () => {
                             checked={selectedOrders.includes(order.id)}
                             onChange={() => handleSelectOrder(order.id)}
                           />
-                          <label className="sr-only">checkbox</label>
+                          <label className="sr-only">{t("admin.orders.checkbox")}</label>
                         </div>
                       </td>
                       <td className="px-4 py-3 font-medium">{order.orderNumber}</td>
@@ -889,15 +897,10 @@ const downloadReceipt = () => {
                       <td className="px-4 py-3 font-medium">{formatCurrency(order.total)}</td>
                       <td className="px-4 py-3">
                         <Badge className={getStatusBadge(order.status)}>
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                          {t(`admin.orders.statuses.${order.status}`)}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center">
-                          <div className={`w-2 h-2 rounded-full mr-2 ${order.isPaid ? "bg-green-500" : "bg-red-500"}`}></div>
-                          {order.payment}
-                        </div>
-                      </td>
+                     
                       <td className="px-4 py-3 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -908,17 +911,17 @@ const downloadReceipt = () => {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openUpdateStatusDialog(order)}>
                               <Truck className="h-4 w-4 mr-2" />
-                              Update Status
+                              {t("admin.orders.actions.updateStatus")}
                             </DropdownMenuItem>
                             {order.status !== "cancelled" && order.status !== "refunded" && (
                               <DropdownMenuItem onClick={() => openCancelOrderDialog(order)}>
                                 <span className="h-4 w-4 mr-2">❌</span>
-                                Cancel Order
+                                {t("admin.orders.actions.cancelOrder")}
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => previewOrderReceipt(order)}>
                               <Printer className="h-4 w-4 mr-2" />
-                              Print Invoice
+                              {t("admin.orders.actions.printInvoice")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -936,9 +939,9 @@ const downloadReceipt = () => {
       <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Invoice Preview</DialogTitle>
+            <DialogTitle>{t("admin.orders.invoice.previewTitle")}</DialogTitle>
             <DialogDescription>
-              Invoice for order #{currentOrder?.orderNumber}
+              {t("admin.orders.invoice.previewDescription", {orderNumber: currentOrder?.orderNumber})}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -948,11 +951,11 @@ const downloadReceipt = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReceiptDialogOpen(false)}>
-              Close
+              {t("admin.orders.close")}
             </Button>
             <Button onClick={downloadReceipt}>
               <Printer className="h-4 w-4 mr-2" />
-              Download Invoice
+              {t("admin.orders.invoice.download")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -962,7 +965,11 @@ const downloadReceipt = () => {
       {!loading && !error && allOrders.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, totalOrders)} of {totalOrders} orders
+            {t("admin.orders.pagination.showing", {
+              from: (currentPage - 1) * itemsPerPage + 1,
+              to: Math.min(currentPage * itemsPerPage, totalOrders),
+              total: totalOrders
+            })}
           </div>
           <div className="flex items-center space-x-2">
             <Button

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslation } from "@/lib/i18n/client"
 import { 
   Card, 
   CardContent
@@ -108,6 +109,7 @@ const defaultNewPromo: PromoCode = {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 export default function PromoCodesManagementPage() {
+  const { t } = useTranslation();
   const router = useRouter()
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([])
   const [loading, setLoading] = useState(true)
@@ -169,7 +171,7 @@ export default function PromoCodesManagementPage() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to fetch promo codes');
+        throw new Error(errorData.message || t("admin.promo.errors.failedToLoad"));
       }
       
       const data = await response.json();
@@ -178,7 +180,7 @@ export default function PromoCodesManagementPage() {
       setTotalPromoCodes(data.totalPromoCodes || 0);
     } catch (error) {
       console.error('Error fetching promo codes:', error);
-      setError(error instanceof Error ? error.message : 'Failed to fetch promo codes');
+      setError(error instanceof Error ? error.message : t("admin.promo.errors.failedToLoad"));
     } finally {
       setLoading(false);
     }
@@ -202,13 +204,13 @@ export default function PromoCodesManagementPage() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create promo code');
+        throw new Error(errorData.message || t("admin.promo.errors.failedToCreate"));
       }
       
       const data = await response.json();
       toast({
-        title: "Success",
-        description: "Promo code created successfully",
+        title: t("admin.promo.toasts.success.title"),
+        description: t("admin.promo.toasts.success.promoCreated"),
       });
       
       // Refresh the list
@@ -217,8 +219,8 @@ export default function PromoCodesManagementPage() {
     } catch (error) {
       console.error('Error creating promo code:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to create promo code',
+        title: t("admin.promo.toasts.error.title"),
+        description: error instanceof Error ? error.message : t("admin.promo.errors.failedToCreate"),
         variant: "destructive"
       });
       throw error;
@@ -245,13 +247,13 @@ export default function PromoCodesManagementPage() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update promo code');
+        throw new Error(errorData.message || t("admin.promo.errors.failedToUpdate"));
       }
       
       const data = await response.json();
       toast({
-        title: "Success",
-        description: "Promo code updated successfully",
+        title: t("admin.promo.toasts.success.title"),
+        description: t("admin.promo.toasts.success.promoUpdated"),
       });
       
       // Refresh the list
@@ -260,8 +262,8 @@ export default function PromoCodesManagementPage() {
     } catch (error) {
       console.error('Error updating promo code:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to update promo code',
+        title: t("admin.promo.toasts.error.title"),
+        description: error instanceof Error ? error.message : t("admin.promo.errors.failedToUpdate"),
         variant: "destructive"
       });
       throw error;
@@ -285,12 +287,12 @@ export default function PromoCodesManagementPage() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete promo code');
+        throw new Error(errorData.message || t("admin.promo.errors.failedToDelete"));
       }
       
       toast({
-        title: "Success",
-        description: "Promo code deleted successfully",
+        title: t("admin.promo.toasts.success.title"),
+        description: t("admin.promo.toasts.success.promoDeleted"),
       });
       
       // Refresh the list
@@ -298,8 +300,8 @@ export default function PromoCodesManagementPage() {
     } catch (error) {
       console.error('Error deleting promo code:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to delete promo code',
+        title: t("admin.promo.toasts.error.title"),
+        description: error instanceof Error ? error.message : t("admin.promo.errors.failedToDelete"),
         variant: "destructive"
       });
     }
@@ -336,8 +338,8 @@ export default function PromoCodesManagementPage() {
     // Basic validation
     if (!newPromo.code || newPromo.value < 0) {
       toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
+        title: t("admin.promo.toasts.error.validationError"),
+        description: t("admin.promo.toasts.error.requiredFields"),
         variant: "destructive"
       })
       return
@@ -393,27 +395,27 @@ export default function PromoCodesManagementPage() {
     
     if (!promo.isActive) {
       return {
-        status: "Inactive",
+        status: t("admin.promo.status.inactive"),
         class: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"
       }
     } else if (now < startDate) {
       return {
-        status: "Scheduled",
+        status: t("admin.promo.status.scheduled"),
         class: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
       }
     } else if (now > endDate) {
       return {
-        status: "Expired",
+        status: t("admin.promo.status.expired"),
         class: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
       }
     } else if (promo.currentUsage >= promo.usageLimit) {
       return {
-        status: "Exhausted",
+        status: t("admin.promo.status.exhausted"),
         class: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
       }
     } else {
       return {
-        status: "Active",
+        status: t("admin.promo.status.active"),
         class: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
       }
     }
@@ -437,9 +439,9 @@ export default function PromoCodesManagementPage() {
       case "fixed_amount":
         return `$${promo.value}`
       case "free_shipping":
-        return "Free Shipping"
+        return t("admin.promo.discounts.freeShipping")
       case "buy_x_get_y":
-        return `Buy ${promo.value} Get Free`
+        return t("admin.promo.discounts.buyXGetFree", { value: promo.value })
       default:
         return `${promo.value}`
     }
@@ -467,7 +469,7 @@ export default function PromoCodesManagementPage() {
   const handleBulkDelete = async () => {
     if (selectedPromos.length === 0) return;
     
-    const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedPromos.length} promo codes?`);
+    const confirmDelete = window.confirm(t("admin.promo.confirmDeleteMultiple", { count: selectedPromos.length }));
     
     if (confirmDelete) {
       try {
@@ -485,8 +487,8 @@ export default function PromoCodesManagementPage() {
         }
         
         toast({
-          title: "Success",
-          description: `${selectedPromos.length} promo codes deleted successfully`,
+          title: t("admin.promo.toasts.success.title"),
+          description: t("admin.promo.toasts.success.promosDeleted", { count: selectedPromos.length }),
         });
         
         setSelectedPromos([]);
@@ -494,8 +496,8 @@ export default function PromoCodesManagementPage() {
       } catch (error) {
         console.error('Error deleting promo codes:', error);
         toast({
-          title: "Error",
-          description: 'Failed to delete some promo codes',
+          title: t("admin.promo.toasts.error.title"),
+          description: t("admin.promo.errors.bulkDeleteFailed"),
           variant: "destructive"
         });
       }
@@ -506,13 +508,13 @@ export default function PromoCodesManagementPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Promo Codes</h1>
-          <p className="text-muted-foreground mt-2">Manage your promotional discounts and offers</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("admin.promo.title")}</h1>
+          <p className="text-muted-foreground mt-2">{t("admin.promo.description")}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={() => setNewPromoDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Promo Code
+            {t("admin.promo.addPromoCode")}
           </Button>
         </div>
       </div>
@@ -522,22 +524,24 @@ export default function PromoCodesManagementPage() {
           <form onSubmit={handleSearch} className="relative w-full md:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search promo codes..."
+              placeholder={t("admin.promo.searchPlaceholder")}
               className="pl-8"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <button type="submit" className="sr-only">Search</button>
+            <button type="submit" className="sr-only">{t("common.search")}</button>
           </form>
           
           <Select value={typeFilter} onValueChange={setTypeFilter}>
             <SelectTrigger className="w-full md:w-40">
-              <SelectValue placeholder="Discount Type" />
+              <SelectValue placeholder={t("admin.promo.discountType")} />
             </SelectTrigger>
             <SelectContent>
               {promoTypes.map((type) => (
                 <SelectItem key={type} value={type}>
-                  {type === "All Types" ? type : promoTypeDisplayNames[type as keyof typeof promoTypeDisplayNames]}
+                  {type === "All Types" 
+                    ? t("admin.promo.filters.allTypes") 
+                    : t(`admin.promo.discountTypes.${type.replace('_', '')}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -553,7 +557,7 @@ export default function PromoCodesManagementPage() {
             onClick={handleBulkDelete}
           >
             <Trash2 className="h-4 w-4 mr-2" />
-            Delete Selected ({selectedPromos.length})
+            {t("admin.promo.deleteSelected", { count: selectedPromos.length })}
           </Button>
         )}
       </div>
@@ -563,7 +567,7 @@ export default function PromoCodesManagementPage() {
           <div className="relative overflow-x-auto">
             {loading ? (
               <div className="p-6 flex justify-center">
-                <p>Loading promo codes...</p>
+                <p>{t("admin.promo.loading")}</p>
               </div>
             ) : error ? (
               <div className="p-6 text-center text-red-500">
@@ -573,12 +577,12 @@ export default function PromoCodesManagementPage() {
                   className="mt-4"
                   onClick={fetchPromoCodes}
                 >
-                  Try Again
+                  {t("common.tryAgain")}
                 </Button>
               </div>
             ) : promoCodes.length === 0 ? (
               <div className="p-6 text-center">
-                <p className="text-muted-foreground">No promo codes found</p>
+                <p className="text-muted-foreground">{t("admin.promo.noPromosFound")}</p>
               </div>
             ) : (
               <table className="w-full text-sm text-left">
@@ -593,16 +597,16 @@ export default function PromoCodesManagementPage() {
                           onChange={handleSelectAll}
                           checked={selectedPromos.length === promoCodes.length && promoCodes.length > 0}
                         />
-                        <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
+                        <label htmlFor="checkbox-all" className="sr-only">{t("common.checkbox")}</label>
                       </div>
                     </th>
-                    <th scope="col" className="px-4 py-3">Code</th>
-                    <th scope="col" className="px-4 py-3">Discount</th>
-                    <th scope="col" className="px-4 py-3">Min. Order</th>
-                    <th scope="col" className="px-4 py-3">Usage</th>
-                    <th scope="col" className="px-4 py-3">Valid Until</th>
-                    <th scope="col" className="px-4 py-3">Status</th>
-                    <th scope="col" className="px-4 py-3">Actions</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.promo.tableHeaders.code")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.promo.tableHeaders.discount")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.promo.tableHeaders.minOrder")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.promo.tableHeaders.usage")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.promo.tableHeaders.validUntil")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.promo.tableHeaders.status")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.promo.tableHeaders.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -622,7 +626,7 @@ export default function PromoCodesManagementPage() {
                               checked={selectedPromos.includes(promo._id || '')}
                               onChange={() => promo._id && handleSelectPromo(promo._id)}
                             />
-                            <label className="sr-only">checkbox</label>
+                            <label className="sr-only">{t("common.checkbox")}</label>
                           </div>
                         </td>
                         <td className="px-4 py-3 font-medium">{promo.code}</td>
@@ -636,7 +640,7 @@ export default function PromoCodesManagementPage() {
                           {promo.minOrderValue > 0 ? `$${promo.minOrderValue}` : '-'}
                         </td>
                         <td className="px-4 py-3">
-                          {promo.currentUsage} / {promo.usageLimit}
+                          {t("admin.promo.usageCount", { current: promo.currentUsage, limit: promo.usageLimit })}
                         </td>
                         <td className="px-4 py-3">
                           {formatDate(promo.endDate)}
@@ -662,18 +666,18 @@ export default function PromoCodesManagementPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuLabel>{t("admin.promo.actions.label")}</DropdownMenuLabel>
                                 <DropdownMenuItem 
                                   onClick={() => {
                                     navigator.clipboard.writeText(promo.code)
                                     toast({
-                                      title: "Copied",
-                                      description: "Promo code copied to clipboard",
+                                      title: t("admin.promo.toasts.success.copied"),
+                                      description: t("admin.promo.toasts.success.codeCopied"),
                                     })
                                   }}
                                 >
                                   <Copy className="h-4 w-4 mr-2" />
-                                  Copy Code
+                                  {t("admin.promo.actions.copyCode")}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem 
@@ -681,7 +685,7 @@ export default function PromoCodesManagementPage() {
                                   onClick={() => promo._id && deletePromoCode(promo._id)}
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete
+                                  {t("admin.promo.actions.delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -701,7 +705,11 @@ export default function PromoCodesManagementPage() {
       {!loading && !error && promoCodes.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, totalPromoCodes)} of {totalPromoCodes} promo codes
+            {t("admin.promo.pagination.showing", {
+              from: (currentPage - 1) * itemsPerPage + 1,
+              to: Math.min(currentPage * itemsPerPage, totalPromoCodes),
+              total: totalPromoCodes
+            })}
           </div>
           <div className="flex items-center space-x-2">
             <Button
@@ -756,16 +764,16 @@ export default function PromoCodesManagementPage() {
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Edit Promo Code</DialogTitle>
+              <DialogTitle>{t("admin.promo.dialogs.edit.title")}</DialogTitle>
               <DialogDescription>
-                Update your promotional code details and settings.
+                {t("admin.promo.dialogs.edit.description")}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleEditSubmit}>
               <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="promo-code" className="text-right">
-                    Code
+                    {t("admin.promo.fields.code")}
                   </Label>
                   <div className="col-span-3 flex gap-2">
                     <Input
@@ -779,7 +787,7 @@ export default function PromoCodesManagementPage() {
                       variant="outline" 
                       size="icon"
                       onClick={() => setCurrentPromo({...currentPromo, code: generateRandomCode()})}
-                      title="Generate random code"
+                      title={t("admin.promo.actions.generateRandom")}
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -788,20 +796,20 @@ export default function PromoCodesManagementPage() {
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="discount-type" className="text-right">
-                    Discount Type
+                    {t("admin.promo.fields.discountType")}
                   </Label>
                   <Select 
                     value={currentPromo.type} 
                     onValueChange={(value) => setCurrentPromo({...currentPromo, type: value})}
                   >
                     <SelectTrigger id="discount-type" className="col-span-3">
-                      <SelectValue placeholder="Select discount type" />
+                      <SelectValue placeholder={t("admin.promo.placeholders.selectDiscountType")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="percentage">Percentage (%)</SelectItem>
-                      <SelectItem value="fixed_amount">Fixed Amount ($)</SelectItem>
-                      <SelectItem value="free_shipping">Free Shipping</SelectItem>
-                      <SelectItem value="buy_x_get_y">Buy X Get Y</SelectItem>
+                      <SelectItem value="percentage">{t("admin.promo.discountTypes.percentage")}</SelectItem>
+                      <SelectItem value="fixed_amount">{t("admin.promo.discountTypes.fixedamount")}</SelectItem>
+                      <SelectItem value="free_shipping">{t("admin.promo.discountTypes.freeshipping")}</SelectItem>
+                      <SelectItem value="buy_x_get_y">{t("admin.promo.discountTypes.buyxgety")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -809,8 +817,11 @@ export default function PromoCodesManagementPage() {
                 {currentPromo.type !== "free_shipping" && (
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="discount-value" className="text-right">
-                      {currentPromo.type === "percentage" ? "Percentage" : 
-                       currentPromo.type === "buy_x_get_y" ? "Buy X quantity" : "Amount"}
+                      {currentPromo.type === "percentage" 
+                        ? t("admin.promo.fields.percentage") 
+                        : currentPromo.type === "buy_x_get_y" 
+                          ? t("admin.promo.fields.buyXQuantity") 
+                          : t("admin.promo.fields.amount")}
                     </Label>
                     <div className="col-span-3 relative">
                       <Input
@@ -838,7 +849,7 @@ export default function PromoCodesManagementPage() {
                 {currentPromo.type === "percentage" && (
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="max-discount" className="text-right">
-                      Max Discount
+                      {t("admin.promo.fields.maxDiscount")}
                     </Label>
                     <div className="col-span-3 relative">
                       <Input
@@ -851,7 +862,7 @@ export default function PromoCodesManagementPage() {
                           maxDiscount: e.target.value === "" ? null : parseFloat(e.target.value)
                         })}
                         className="pl-7"
-                        placeholder="No limit"
+                        placeholder={t("admin.promo.placeholders.noLimit")}
                       />
                       <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
                         $
@@ -862,7 +873,7 @@ export default function PromoCodesManagementPage() {
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="min-order" className="text-right">
-                    Min. Order Value
+                    {t("admin.promo.fields.minOrderValue")}
                   </Label>
                   <div className="col-span-3 relative">
                     <Input
@@ -881,7 +892,7 @@ export default function PromoCodesManagementPage() {
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="max-uses-total" className="text-right">
-                    Max Total Uses
+                    {t("admin.promo.fields.maxTotalUses")}
                   </Label>
                   <Input
                     id="max-uses-total"
@@ -895,7 +906,7 @@ export default function PromoCodesManagementPage() {
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="max-uses-customer" className="text-right">
-                    Max Uses Per Customer
+                    {t("admin.promo.fields.maxUsesPerCustomer")}
                   </Label>
                   <Input
                     id="max-uses-customer"
@@ -909,7 +920,7 @@ export default function PromoCodesManagementPage() {
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="start-date" className="text-right">
-                    Start Date
+                    {t("admin.promo.fields.startDate")}
                   </Label>
                   <Input
                     id="start-date"
@@ -922,7 +933,7 @@ export default function PromoCodesManagementPage() {
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="end-date" className="text-right">
-                    End Date
+                    {t("admin.promo.fields.endDate")}
                   </Label>
                   <Input
                     id="end-date"
@@ -935,7 +946,7 @@ export default function PromoCodesManagementPage() {
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <div className="text-right">
-                    <Label htmlFor="promo-active">Status</Label>
+                    <Label htmlFor="promo-active">{t("admin.promo.fields.status")}</Label>
                   </div>
                   <div className="flex items-center space-x-2 col-span-3">
                     <Checkbox 
@@ -945,13 +956,13 @@ export default function PromoCodesManagementPage() {
                         setCurrentPromo({...currentPromo, isActive: checked === true})
                       } 
                     />
-                    <Label htmlFor="promo-active">Active</Label>
+                    <Label htmlFor="promo-active">{t("admin.promo.fields.active")}</Label>
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <div className="text-right">
-                    <Label htmlFor="first-time-only">First Time Only</Label>
+                    <Label htmlFor="first-time-only">{t("admin.promo.fields.firstTimeOnly")}</Label>
                   </div>
                   <div className="flex items-center space-x-2 col-span-3">
                     <Checkbox 
@@ -961,13 +972,13 @@ export default function PromoCodesManagementPage() {
                         setCurrentPromo({...currentPromo, firstTimeOnly: checked === true})
                       } 
                     />
-                    <Label htmlFor="first-time-only">First purchase only</Label>
+                    <Label htmlFor="first-time-only">{t("admin.promo.fields.firstPurchaseOnly")}</Label>
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-4 items-start gap-4">
                   <Label htmlFor="promo-description" className="text-right pt-2">
-                    Description
+                    {t("admin.promo.fields.description")}
                   </Label>
                   <Textarea
                     id="promo-description"
@@ -980,10 +991,10 @@ export default function PromoCodesManagementPage() {
               </div>
               <DialogFooter className="mt-2">
                 <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)} disabled={isSubmitting}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Saving..." : "Save changes"}
+                  {isSubmitting ? t("admin.promo.dialogs.edit.saving") : t("admin.promo.dialogs.edit.saveChanges")}
                 </Button>
               </DialogFooter>
             </form>
@@ -995,16 +1006,16 @@ export default function PromoCodesManagementPage() {
       <Dialog open={newPromoDialogOpen} onOpenChange={setNewPromoDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Add New Promo Code</DialogTitle>
+            <DialogTitle>{t("admin.promo.dialogs.add.title")}</DialogTitle>
             <DialogDescription>
-              Create a new promotional code for your customers.
+              {t("admin.promo.dialogs.add.description")}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleNewPromoSubmit}>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="new-promo-code" className="text-right">
-                  Code *
+                  {t("admin.promo.fields.code")} *
                 </Label>
                 <div className="col-span-3 flex gap-2">
                   <Input
@@ -1019,7 +1030,7 @@ export default function PromoCodesManagementPage() {
                     variant="outline" 
                     size="icon"
                     onClick={() => setNewPromo({...newPromo, code: generateRandomCode()})}
-                    title="Generate random code"
+                    title={t("admin.promo.actions.generateRandom")}
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -1028,20 +1039,20 @@ export default function PromoCodesManagementPage() {
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="new-discount-type" className="text-right">
-                  Discount Type *
+                  {t("admin.promo.fields.discountType")} *
                 </Label>
                 <Select 
                   value={newPromo.type} 
                   onValueChange={(value) => setNewPromo({...newPromo, type: value})}
                 >
                   <SelectTrigger id="new-discount-type" className="col-span-3">
-                    <SelectValue placeholder="Select discount type" />
+                    <SelectValue placeholder={t("admin.promo.placeholders.selectDiscountType")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="percentage">Percentage (%)</SelectItem>
-                    <SelectItem value="fixed_amount">Fixed Amount ($)</SelectItem>
-                    <SelectItem value="free_shipping">Free Shipping</SelectItem>
-                    <SelectItem value="buy_x_get_y">Buy X Get Y</SelectItem>
+                    <SelectItem value="percentage">{t("admin.promo.discountTypes.percentage")}</SelectItem>
+                    <SelectItem value="fixed_amount">{t("admin.promo.discountTypes.fixedamount")}</SelectItem>
+                    <SelectItem value="free_shipping">{t("admin.promo.discountTypes.freeshipping")}</SelectItem>
+                    <SelectItem value="buy_x_get_y">{t("admin.promo.discountTypes.buyxgety")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1049,8 +1060,11 @@ export default function PromoCodesManagementPage() {
               {newPromo.type !== "free_shipping" && (
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="new-discount-value" className="text-right">
-                    {newPromo.type === "percentage" ? "Percentage" : 
-                     newPromo.type === "buy_x_get_y" ? "Buy X quantity" : "Amount"} *
+                    {newPromo.type === "percentage" 
+                      ? t("admin.promo.fields.percentage") 
+                      : newPromo.type === "buy_x_get_y" 
+                        ? t("admin.promo.fields.buyXQuantity") 
+                        : t("admin.promo.fields.amount")} *
                   </Label>
                   <div className="col-span-3 relative">
                     <Input
@@ -1079,7 +1093,7 @@ export default function PromoCodesManagementPage() {
               {newPromo.type === "percentage" && (
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="new-max-discount" className="text-right">
-                    Max Discount
+                    {t("admin.promo.fields.maxDiscount")}
                   </Label>
                   <div className="col-span-3 relative">
                     <Input
@@ -1092,7 +1106,7 @@ export default function PromoCodesManagementPage() {
                         maxDiscount: e.target.value === "" ? null : parseFloat(e.target.value)
                       })}
                       className="pl-7"
-                      placeholder="No limit"
+                      placeholder={t("admin.promo.placeholders.noLimit")}
                     />
                     <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
                       $
@@ -1103,7 +1117,7 @@ export default function PromoCodesManagementPage() {
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="new-min-order" className="text-right">
-                  Min. Order Value
+                  {t("admin.promo.fields.minOrderValue")}
                 </Label>
                 <div className="col-span-3 relative">
                   <Input
@@ -1122,7 +1136,7 @@ export default function PromoCodesManagementPage() {
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="new-max-uses-total" className="text-right">
-                  Max Total Uses *
+                  {t("admin.promo.fields.maxTotalUses")} *
                 </Label>
                 <Input
                   id="new-max-uses-total"
@@ -1137,7 +1151,7 @@ export default function PromoCodesManagementPage() {
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="new-max-uses-customer" className="text-right">
-                  Max Uses Per Customer *
+                  {t("admin.promo.fields.maxUsesPerCustomer")} *
                 </Label>
                 <Input
                   id="new-max-uses-customer"
@@ -1152,7 +1166,7 @@ export default function PromoCodesManagementPage() {
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="new-start-date" className="text-right">
-                  Start Date *
+                  {t("admin.promo.fields.startDate")} *
                 </Label>
                 <Input
                   id="new-start-date"
@@ -1166,7 +1180,7 @@ export default function PromoCodesManagementPage() {
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="new-end-date" className="text-right">
-                  End Date *
+                  {t("admin.promo.fields.endDate")} *
                 </Label>
                 <Input
                   id="new-end-date"
@@ -1180,7 +1194,7 @@ export default function PromoCodesManagementPage() {
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <div className="text-right">
-                  <Label htmlFor="new-promo-active">Status</Label>
+                  <Label htmlFor="new-promo-active">{t("admin.promo.fields.status")}</Label>
                 </div>
                 <div className="flex items-center space-x-2 col-span-3">
                   <Checkbox 
@@ -1190,13 +1204,13 @@ export default function PromoCodesManagementPage() {
                       setNewPromo({...newPromo, isActive: checked === true})
                     } 
                   />
-                  <Label htmlFor="new-promo-active">Active</Label>
+                  <Label htmlFor="new-promo-active">{t("admin.promo.fields.active")}</Label>
                 </div>
               </div>
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <div className="text-right">
-                  <Label htmlFor="new-first-time-only">First Time Only</Label>
+                  <Label htmlFor="new-first-time-only">{t("admin.promo.fields.firstTimeOnly")}</Label>
                 </div>
                 <div className="flex items-center space-x-2 col-span-3">
                   <Checkbox 
@@ -1206,13 +1220,13 @@ export default function PromoCodesManagementPage() {
                       setNewPromo({...newPromo, firstTimeOnly: checked === true})
                     } 
                   />
-                  <Label htmlFor="new-first-time-only">First purchase only</Label>
+                  <Label htmlFor="new-first-time-only">{t("admin.promo.fields.firstPurchaseOnly")}</Label>
                 </div>
               </div>
               
               <div className="grid grid-cols-4 items-start gap-4">
                 <Label htmlFor="new-promo-description" className="text-right pt-2">
-                  Description
+                  {t("admin.promo.fields.description")}
                 </Label>
                 <Textarea
                   id="new-promo-description"
@@ -1220,7 +1234,7 @@ export default function PromoCodesManagementPage() {
                   onChange={(e) => setNewPromo({...newPromo, description: e.target.value})}
                   className="col-span-3"
                   rows={3}
-                  placeholder="Briefly describe this promotion"
+                  placeholder={t("admin.promo.placeholders.promoDescription")}
                 />
               </div>
             </div>
@@ -1231,10 +1245,10 @@ export default function PromoCodesManagementPage() {
                 onClick={() => setNewPromoDialogOpen(false)} 
                 disabled={isSubmitting}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={isSubmitting || !newPromo.code}>
-                {isSubmitting ? "Creating..." : "Create Promo Code"}
+                {isSubmitting ? t("admin.promo.dialogs.add.creating") : t("admin.promo.dialogs.add.createPromoCode")}
               </Button>
             </DialogFooter>
           </form>

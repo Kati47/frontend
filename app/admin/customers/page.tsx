@@ -25,7 +25,6 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
-  Lock,
   Shield,
   User as UserIcon,
   Loader2
@@ -40,12 +39,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { useTranslation } from "@/lib/i18n/client";
 
-// API Base URL - should be in your .env file
+// API URL should be in your .env file
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 // Simplified roles for filter
@@ -117,7 +116,7 @@ export default function UsersManagementPage() {
     isAdmin: false
   })
   const itemsPerPage = 8
-
+ const { t } = useTranslation(); 
   // Function to retrieve the auth token
   const getAuthToken = () => {
     try {
@@ -159,7 +158,7 @@ export default function UsersManagementPage() {
         ...user,
         _id: user._id || user.id,
         role: user.isAdmin ? "Admin" : "Customer",
-        // Add some default values for the frontend
+        // Some default values for the frontend
         orders: user.orders || 0,
         totalSpent: user.totalSpent || 0,
         avatar: user.avatar || `/avatars/avatar-${Math.floor(Math.random() * 10) + 1}.png`
@@ -195,7 +194,7 @@ export default function UsersManagementPage() {
       return {
         ...userData,
         role: userData.isAdmin ? "Admin" : "Customer",
-        // Add frontend properties
+        // Frontend properties
         orders: userData.orders || 0,
         totalSpent: userData.totalSpent || 0
       }
@@ -206,10 +205,16 @@ export default function UsersManagementPage() {
     }
   }
 
-  // Add a new user
+  // Create a new user
   const createUser = async (userData: NewUser) => {
     try {
-      const response = await fetch(`${API_URL}/users`, {
+      console.log('Sending request to:', `${API_URL}/users/add`);
+      console.log('Request data:', { 
+        ...userData, 
+        password: userData.password ? '******' : undefined 
+      });
+      
+      const response = await fetch(`${API_URL}/users/add`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`,
@@ -219,18 +224,26 @@ export default function UsersManagementPage() {
         body: JSON.stringify({
           name: userData.name,
           email: userData.email,
-          passwordHash: userData.password, // The backend expects passwordHash
+          password: userData.password,  // Backend expects password and will hash it
           phone: userData.phone,
           isAdmin: userData.isAdmin
         })
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || `Failed to create user: ${response.statusText}`)
+      // Handle non-JSON responses (like HTML error pages)
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Received non-JSON response:', text);
+        throw new Error('Server returned invalid response format. Check server logs.');
       }
 
-      return await response.json()
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to create user: ${response.statusText}`);
+      }
+
+      return await response.json();
     } catch (err) {
       console.error("Error creating user:", err)
       throw err
@@ -459,12 +472,12 @@ export default function UsersManagementPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground mt-2">Manage your users and permissions</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("admin.customers.title")}</h1>
+          <p className="text-muted-foreground mt-2">{t("admin.customers.description")}</p>
         </div>
         <Button onClick={() => setNewUserDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Add User
+          {t("admin.customers.addUser")}
         </Button>
       </div>
 
@@ -473,7 +486,7 @@ export default function UsersManagementPage() {
           <div className="relative w-full md:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search users..."
+              placeholder={t("admin.customers.searchPlaceholder")}
               className="pl-8"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -481,12 +494,12 @@ export default function UsersManagementPage() {
           </div>
           <Select value={roleFilter} onValueChange={setRoleFilter}>
             <SelectTrigger className="w-full md:w-40">
-              <SelectValue placeholder="Filter by role" />
+              <SelectValue placeholder={t("admin.customers.filterByRole")} />
             </SelectTrigger>
             <SelectContent>
               {roles.map((role) => (
                 <SelectItem key={role} value={role}>
-                  {role}
+                  {t(`admin.customers.roles.${role.toLowerCase().replace(/\s+/g, "")}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -500,13 +513,13 @@ export default function UsersManagementPage() {
             {loading ? (
               <div className="flex items-center justify-center p-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-muted-foreground">Loading users...</span>
+                <span className="ml-2 text-muted-foreground">{t("admin.customers.loadingUsers")}</span>
               </div>
             ) : error ? (
               <div className="p-8 text-center text-red-500">
                 <p>{error}</p>
                 <Button variant="outline" className="mt-4" onClick={fetchUsers}>
-                  Try Again
+                  {t("common.tryAgain")}
                 </Button>
               </div>
             ) : (
@@ -522,19 +535,19 @@ export default function UsersManagementPage() {
                           onChange={handleSelectAll}
                           checked={selectedUsers.length === currentUsers.length && currentUsers.length > 0}
                         />
-                        <label htmlFor="checkbox-all" className="sr-only">checkbox</label>
+                        <label htmlFor="checkbox-all" className="sr-only">{t("common.checkbox")}</label>
                       </div>
                     </th>
-                    <th scope="col" className="px-4 py-3">User</th>
-                    <th scope="col" className="px-4 py-3">Role</th>
-                    <th scope="col" className="px-4 py-3 text-right">Actions</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.customers.tableHeaders.user")}</th>
+                    <th scope="col" className="px-4 py-3">{t("admin.customers.tableHeaders.role")}</th>
+                    <th scope="col" className="px-4 py-3 text-right">{t("admin.customers.tableHeaders.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {currentUsers.length === 0 ? (
                     <tr className="border-b">
                       <td colSpan={4} className="px-4 py-8 text-center">
-                        <p className="text-muted-foreground">No users found</p>
+                        <p className="text-muted-foreground">{t("admin.customers.noUsersFound")}</p>
                       </td>
                     </tr>
                   ) : (
@@ -554,7 +567,7 @@ export default function UsersManagementPage() {
                                 checked={selectedUsers.includes(user._id)}
                                 onChange={() => handleSelectUser(user._id)}
                               />
-                              <label className="sr-only">checkbox</label>
+                              <label className="sr-only">{t("common.checkbox")}</label>
                             </div>
                           </td>
                           <td className="flex items-center gap-3 px-4 py-3">
@@ -576,7 +589,7 @@ export default function UsersManagementPage() {
                           <td className="px-4 py-3">
                             <Badge className={`flex w-fit items-center ${roleBadge.class}`}>
                               {roleBadge.icon}
-                              {user.isAdmin ? "Admin" : "Customer"}
+                              {t(`admin.customers.roles.${user.isAdmin ? "admin" : "customer"}`)}
                             </Badge>
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -595,10 +608,10 @@ export default function UsersManagementPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuLabel>{t("admin.customers.actions")}</DropdownMenuLabel>
                                   <DropdownMenuItem onClick={() => openEditDialog(user)}>
                                     <Pencil className="h-4 w-4 mr-2" />
-                                    Edit
+                                    {t("admin.customers.edit")}
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem 
@@ -606,7 +619,7 @@ export default function UsersManagementPage() {
                                     onClick={() => openDeleteDialog(user)}
                                   >
                                     <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
+                                    {t("admin.customers.delete")}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -627,7 +640,11 @@ export default function UsersManagementPage() {
       {!loading && !error && filteredUsers.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} users
+            {t("admin.customers.pagination.showing", { 
+              from: startIndex + 1, 
+              to: Math.min(endIndex, filteredUsers.length), 
+              total: filteredUsers.length 
+            })}
           </div>
           <div className="flex items-center space-x-2">
             <Button
@@ -667,64 +684,64 @@ export default function UsersManagementPage() {
       <Dialog open={newUserDialogOpen} onOpenChange={setNewUserDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle>{t("admin.customers.dialogs.add.title")}</DialogTitle>
             <DialogDescription>
-              Create a new user account.
+              {t("admin.customers.dialogs.add.description")}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">{t("admin.customers.fields.name")}</Label>
               <Input 
                 id="name"
-                placeholder="John Doe" 
+                placeholder={t("admin.customers.placeholders.name")} 
                 value={newUser.name}
                 onChange={(e) => setNewUser({...newUser, name: e.target.value})}
                 autoFocus
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("admin.customers.fields.email")}</Label>
               <Input 
                 id="email"
                 type="email"
-                placeholder="john@example.com"
+                placeholder={t("admin.customers.placeholders.email")}
                 value={newUser.email}
                 onChange={(e) => setNewUser({...newUser, email: e.target.value})}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="phone">Phone</Label>
+              <Label htmlFor="phone">{t("admin.customers.fields.phone")}</Label>
               <Input 
                 id="phone"
                 type="tel"
-                placeholder="+1 234 567 8900"
+                placeholder={t("admin.customers.placeholders.phone")}
                 value={newUser.phone}
                 onChange={(e) => setNewUser({...newUser, phone: e.target.value})}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("admin.customers.fields.password")}</Label>
               <Input 
                 id="password"
                 type="password"
-                placeholder="Enter password"
+                placeholder={t("admin.customers.placeholders.password")}
                 value={newUser.password}
                 onChange={(e) => setNewUser({...newUser, password: e.target.value})}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="role">Role</Label>
+              <Label htmlFor="role">{t("admin.customers.fields.role")}</Label>
               <Select 
                 value={newUser.isAdmin ? "Admin" : "Customer"}
                 onValueChange={(value) => setNewUser({...newUser, isAdmin: value === "Admin"})}
               >
                 <SelectTrigger id="role">
-                  <SelectValue placeholder="Select a role" />
+                  <SelectValue placeholder={t("admin.customers.placeholders.selectRole")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Customer">Customer</SelectItem>
-                  <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Customer">{t("admin.customers.roles.customer")}</SelectItem>
+                  <SelectItem value="Admin">{t("admin.customers.roles.admin")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -735,7 +752,7 @@ export default function UsersManagementPage() {
               onClick={() => setNewUserDialogOpen(false)}
               disabled={isSubmitting}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button 
               onClick={handleAddUser} 
@@ -744,9 +761,9 @@ export default function UsersManagementPage() {
               {isSubmitting ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent border-white" />
-                  Creating...
+                  {t("admin.customers.dialogs.add.creating")}
                 </>
-              ) : "Create User"}
+              ) : t("admin.customers.dialogs.add.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -757,9 +774,9 @@ export default function UsersManagementPage() {
         <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Edit User</DialogTitle>
+              <DialogTitle>{t("admin.customers.dialogs.edit.title")}</DialogTitle>
               <DialogDescription>
-                Update user details and account settings
+                {t("admin.customers.dialogs.edit.description")}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-4">
@@ -775,19 +792,18 @@ export default function UsersManagementPage() {
                 </div>
                 <div className="flex flex-col">
                   <Button variant="outline" size="sm" className="mb-2">
-                    Change Avatar
+                    {t("admin.customers.dialogs.edit.changeAvatar")}
                   </Button>
                   <Button variant="ghost" size="sm" className="text-red-500">
-                    Remove Avatar
+                    {t("admin.customers.dialogs.edit.removeAvatar")}
                   </Button>
                 </div>
               </div>
 
               <Separator />
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-name">Full Name</Label>
+                  <Label htmlFor="edit-name">{t("admin.customers.fields.name")}</Label>
                   <Input 
                     id="edit-name"
                     value={editForm.name}
@@ -795,7 +811,7 @@ export default function UsersManagementPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-email">Email</Label>
+                  <Label htmlFor="edit-email">{t("admin.customers.fields.email")}</Label>
                   <Input 
                     id="edit-email"
                     type="email"
@@ -806,7 +822,7 @@ export default function UsersManagementPage() {
               </div>
               
               <div className="grid gap-2">
-                <Label htmlFor="edit-phone">Phone</Label>
+                <Label htmlFor="edit-phone">{t("admin.customers.fields.phone")}</Label>
                 <Input 
                   id="edit-phone"
                   type="tel"
@@ -816,36 +832,22 @@ export default function UsersManagementPage() {
               </div>
               
               <div className="grid gap-2">
-                <Label htmlFor="edit-role">Role</Label>
+                <Label htmlFor="edit-role">{t("admin.customers.fields.role")}</Label>
                 <Select 
                   value={editForm.isAdmin ? "Admin" : "Customer"}
                   onValueChange={(value) => setEditForm({...editForm, isAdmin: value === "Admin"})}
                 >
                   <SelectTrigger id="edit-role">
-                    <SelectValue placeholder="Select a role" />
+                    <SelectValue placeholder={t("admin.customers.placeholders.selectRole")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Customer">Customer</SelectItem>
-                    <SelectItem value="Admin">Admin</SelectItem>
+                    <SelectItem value="Customer">{t("admin.customers.roles.customer")}</SelectItem>
+                    <SelectItem value="Admin">{t("admin.customers.roles.admin")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               
               <Separator />
-              
-              <div>
-                <h3 className="text-sm font-medium mb-2">Security Settings</h3>
-                <Button variant="outline" size="sm" className="mb-2">
-                  <Lock className="h-4 w-4 mr-2" />
-                  Reset Password
-                </Button>
-                <div className="flex items-center space-x-2 mt-2">
-                  <Switch 
-                    id="force-password-change" 
-                  />
-                  <Label htmlFor="force-password-change">Force password change on next login</Label>
-                </div>
-              </div>
             </div>
             <DialogFooter>
               <Button 
@@ -853,7 +855,7 @@ export default function UsersManagementPage() {
                 onClick={() => setEditUserDialogOpen(false)}
                 disabled={isSubmitting}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button 
                 onClick={handleUpdateUser}
@@ -862,9 +864,9 @@ export default function UsersManagementPage() {
                 {isSubmitting ? (
                   <>
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent border-white" />
-                    Saving...
+                    {t("admin.customers.dialogs.edit.saving")}
                   </>
-                ) : "Save Changes"}
+                ) : t("admin.customers.dialogs.edit.save")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -876,9 +878,9 @@ export default function UsersManagementPage() {
         <Dialog open={deleteUserDialogOpen} onOpenChange={setDeleteUserDialogOpen}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Delete User</DialogTitle>
+              <DialogTitle>{t("admin.customers.dialogs.delete.title")}</DialogTitle>
               <DialogDescription>
-                This action cannot be undone. This will permanently delete this user account.
+                {t("admin.customers.dialogs.delete.description")}
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
@@ -900,8 +902,8 @@ export default function UsersManagementPage() {
 
               <p className="mt-4 text-sm text-muted-foreground">
                 {currentUser.isAdmin
-                  ? "This will revoke all access and permissions for this user."
-                  : "This will also delete all associated orders, reviews, and other customer data."
+                  ? t("admin.customers.dialogs.delete.adminWarning")
+                  : t("admin.customers.dialogs.delete.customerWarning")
                 }
               </p>
               
@@ -916,7 +918,7 @@ export default function UsersManagementPage() {
                     htmlFor="confirm-delete"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    I confirm that I want to delete this user
+                    {t("admin.customers.dialogs.delete.confirmText")}
                   </label>
                 </div>
               </div>
@@ -927,7 +929,7 @@ export default function UsersManagementPage() {
                 onClick={() => setDeleteUserDialogOpen(false)}
                 disabled={isSubmitting}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button 
                 variant="destructive"
@@ -937,9 +939,9 @@ export default function UsersManagementPage() {
                 {isSubmitting ? (
                   <>
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent border-white" />
-                    Deleting...
+                    {t("admin.customers.dialogs.delete.deleting")}
                   </>
-                ) : "Delete User"}
+                ) : t("admin.customers.dialogs.delete.delete")}
               </Button>
             </DialogFooter>
           </DialogContent>

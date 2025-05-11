@@ -245,19 +245,10 @@ export default function LoginPage() {
                   </div>
                   
                   {/* Social login buttons with updated hover colors */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="flex justify-center">
                     <button
                       type="button"
-                      className="group flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-[#0b3093]/30 dark:hover:border-[#5a89ff]/30 transition-all duration-200"
-                    >
-                      <svg className="h-5 w-5 mr-2 text-slate-600 dark:text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 5C13.66 5 15 6.34 15 8C15 9.66 13.66 11 12 11C10.34 11 9 9.66 9 8C9 6.34 10.34 5 12 5ZM12 19.2C9.5 19.2 7.29 17.92 6 15.98C6.03 13.99 10 12.9 12 12.9C13.99 12.9 17.97 13.99 18 15.98C16.71 17.92 14.5 19.2 12 19.2Z"/>
-                      </svg>
-                      {t('guest')}
-                    </button>
-                    <button
-                      type="button"
-                      className="group flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-[#0b3093]/30 dark:hover:border-[#5a89ff]/30 transition-all duration-200"
+                      className="group flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-[#0b3093]/30 dark:hover:border-[#5a89ff]/30 transition-all duration-200"
                     >
                       <svg className="h-5 w-5 mr-2" viewBox="0 0 48 48">
                         <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path>
@@ -291,7 +282,7 @@ export default function LoginPage() {
           {/* Brand footer */}
           <div className="mt-8 text-center">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              © {new Date().getFullYear()} Kidéa Design. {t('all_rights_reserved')}
+              © {new Date().getFullYear()} Kadéa Design. {t('all_rights_reserved')}
             </p>
           </div>
         </div>

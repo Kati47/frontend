@@ -42,23 +42,13 @@ export default function AdminSidebar() {
       name: "Products",
       href: "/admin/products",
       icon: Package,
-      children: [
-        { name: "All Products", href: "/admin/products" },
-        { name: "Add Product", href: "/admin/products/add" },
-        { name: "Categories", href: "/admin/products/categories" },
-      ],
+     
     },
     {
       name: "Orders",
       href: "/admin/orders",
       icon: ShoppingCart,
-      children: [
-        { name: "All Orders", href: "/admin/orders" },
-        { name: "Pending", href: "/admin/orders/pending" },
-        { name: "Shipped", href: "/admin/orders/shipped" },
-        { name: "Delivered", href: "/admin/orders/delivered" },
-        { name: "Canceled", href: "/admin/orders/canceled" },
-      ],
+    
     },
     {
       name: "Customers",
@@ -66,36 +56,18 @@ export default function AdminSidebar() {
       icon: Users,
     },
     {
-      name: "Marketing",
-      href: "/admin/marketing",
+      name: "Promo Codes",
+      href: "/admin/promo",
       icon: Tag,
-      children: [
-        { name: "Promotions", href: "/admin/marketing/promotions" },
-        { name: "Discounts", href: "/admin/marketing/discounts" },
-        { name: "Coupons", href: "/admin/marketing/coupons" },
-      ],
     },
     {
-      name: "Analytics",
-      href: "/admin/analytics",
+      name: "Reviews",
+      href: "/admin/reviews",
       icon: BarChart3,
-      children: [
-        { name: "Overview", href: "/admin/analytics" },
-        { name: "Sales", href: "/admin/analytics/sales" },
-        { name: "Products", href: "/admin/analytics/products" },
-        { name: "Customers", href: "/admin/analytics/customers" },
-      ],
+      
     },
-    {
-      name: "Notifications",
-      href: "/admin/notifications",
-      icon: Bell,
-    },
-    {
-      name: "Settings",
-      href: "/admin/settings",
-      icon: Settings,
-    },
+    
+    
   ]
 
   const isActive = (item: any) => {

@@ -16,22 +16,27 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Bell, Search, Settings, LogOut, User, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useTranslation } from "@/lib/i18n/client"
+import { LanguageSelector } from "@/components/language-selector"
 
 export default function AdminHeader() {
   const { user, logout } = useAuth()
   const { theme, setTheme } = useTheme()
+  const { t } = useTranslation()
   const [notifications] = useState(5)
 
   return (
     <header className="border-b bg-background h-16 px-6 flex items-center justify-between">
       <div className="flex items-center gap-4">
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input type="search" placeholder="Search..." className="pl-8 w-[300px] bg-muted/50" />
+          
         </div>
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Language Selector */}
+        <LanguageSelector />
+
         <Button
           variant="outline"
           size="icon"
@@ -40,7 +45,7 @@ export default function AdminHeader() {
         >
           <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-primary" />
           <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-primary-foreground" />
-          <span className="sr-only">Toggle theme</span>
+          <span className="sr-only">{t("toggle_theme")}</span>
         </Button>
 
         <Button variant="ghost" size="icon" className="relative">
@@ -50,7 +55,7 @@ export default function AdminHeader() {
               {notifications}
             </Badge>
           )}
-          <span className="sr-only">Notifications</span>
+          <span className="sr-only">{t("admin.notifications")}</span>
         </Button>
 
         <DropdownMenu>
@@ -63,20 +68,12 @@ export default function AdminHeader() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("admin.myAccount")}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
-              <User className="h-4 w-4" />
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
-              <Settings className="h-4 w-4" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+         
             <DropdownMenuItem onClick={logout} className="flex items-center gap-2 cursor-pointer">
               <LogOut className="h-4 w-4" />
-              Logout
+              {t("logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -84,4 +81,3 @@ export default function AdminHeader() {
     </header>
   )
 }
-

@@ -317,7 +317,7 @@ export default function ResetPasswordPage() {
           {/* Brand footer */}
           <div className="mt-8 text-center">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              © {new Date().getFullYear()} Kidéa Design. {t('all_rights_reserved')}
+              © {new Date().getFullYear()} Kadéa Design. {t('all_rights_reserved')}
             </p>
           </div>
         </div>

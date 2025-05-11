@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card"
 import { ChatMessage } from "./chat-message"
 import { useRouter } from "next/navigation"
 
-// Types for message history
+// For message history
 type Message = {
   id: string
   content: string
@@ -24,7 +24,7 @@ type Message = {
   followUpQuestions?: string[]
 }
 
-// Type for product recommendations
+// For product recommendations
 type ProductRecommendation = {
   id: string
   title: string
@@ -36,13 +36,13 @@ type ProductRecommendation = {
   dimensions?: string
 }
 
-// Types for conversation history sent to API
+// For conversation history sent to API
 type ConversationHistoryItem = {
   role: "user" | "assistant"
   content: string
 }
 
-// Quick suggestions for the chat
+// Suggestions for the chat
 const QUICK_SUGGESTIONS = [
   "What furniture do you recommend for a small living room?",
   "I need a comfortable sofa under $800",
@@ -53,7 +53,9 @@ const QUICK_SUGGESTIONS = [
 
 export function ChatBot() {
   const router = useRouter();
-  const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "";
+  // Set the correct API URL
+  const API_URL = "http://localhost:5000/api/v1/ai";
+  
   const [isOpen, setIsOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -70,6 +72,23 @@ export function ChatBot() {
   const [contextData, setContextData] = useState<{
     productId?: string | null
   }>({});
+  
+  // Track previously shown products to avoid repeating recommendations
+  const [shownProductIds, setShownProductIds] = useState<string[]>([]);
+  
+  // Track conversation topics to improve recommendations
+  const [topicHistory, setTopicHistory] = useState<string[]>([]);
+  
+  // Track user preferences accumulated across the conversation
+  const [userPreferences, setUserPreferences] = useState<{
+    category?: string | null
+    priceMin?: number | null
+    priceMax?: number | null
+    style?: string | null
+    room?: string | null
+    colors?: string[] | null
+  }>({});
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -95,7 +114,28 @@ export function ChatBot() {
     }
   }
 
-  // Auto-scroll to bottom of messages
+  // Verify API connection on startup
+  useEffect(() => {
+    // Check if API is accessible when component mounts
+    const checkApiConnection = async () => {
+      try {
+        console.log("Checking API connection to:", API_URL);
+        const response = await fetch(`${API_URL}/status`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log("API connection successful:", data);
+        } else {
+          console.warn("API endpoint not accessible:", response.status);
+        }
+      } catch (error) {
+        console.error("Error connecting to API:", error);
+      }
+    };
+
+    checkApiConnection();
+  }, []);
+
+  // Scroll to bottom of messages
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -111,10 +151,10 @@ export function ChatBot() {
     }
   }, [isOpen]);
   
-  // Reset context when chat is opened - with better error handling
+  // Reset context when chat is opened
   useEffect(() => {
     if (isOpen) {
-      // Try to reset context but don't block chat functionality if it fails
+      // Reset context but don't block chat functionality if it fails
       resetChatContext().catch(error => {
         console.warn("Chat context reset failed, but chat will still work:", error);
       });
@@ -128,32 +168,25 @@ export function ChatBot() {
     }
   }, [messages.length]);
 
-  // Reset the chat context on the server with improved error handling
+  // Reset the chat context on the server
   const resetChatContext = async () => {
-    // Skip the API call if there's no base URL configured
-    if (!NEXT_PUBLIC_BASE_URL) {
-      console.log("Skipping context reset - no API URL configured");
-      return;
-    }
-    
     try {
       const token = getAuthToken();
-      
-      // Only attempt the API call if we have a token
-      if (!token) {
-        console.log("Skipping context reset - no auth token available");
-        return;
-      }
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
-      const response = await fetch(`${NEXT_PUBLIC_BASE_URL}/assistant/reset-context`, {
+      console.log("Resetting chat context...");
+      
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json'
         },
+        body: JSON.stringify({
+          action: 'reset' // Specify this is a reset action
+        }),
         credentials: 'include',
         signal: controller.signal
       });
@@ -161,7 +194,7 @@ export function ChatBot() {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
-        // Log the error but don't throw - allows chat to work even if reset fails
+        // Log error but don't throw - allows chat to work even if reset fails
         console.warn(`Failed to reset chat context: ${response.status} ${response.statusText}`);
       } else {
         console.log("Chat context reset successful");
@@ -203,36 +236,68 @@ export function ChatBot() {
       // Get auth token
       const token = getAuthToken();
       
+      console.log("Sending message to AI assistant:", messageToSend);
+      console.log("API URL:", API_URL);
+      
       // Call the unified assistant API with correct path
-      const response = await fetch(`${NEXT_PUBLIC_BASE_URL}/assistant/unified`, {
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': token ? `Bearer ${token}` : ''
         },
         body: JSON.stringify({
+          action: 'chat',
           message: messageToSend,
           conversationHistory: updatedHistory,
-          contextData: contextData,
-          userId: getUserIdFromLocalStorage()
+          preferences: {
+            ...userPreferences, // Send accumulated preferences
+            ...contextData.productId ? { relatedProductId: contextData.productId } : {},
+            previousProductIds: shownProductIds // Send the products we've already shown
+          }
         }),
         credentials: 'include'
       });
       
+      // Handle non-OK responses better with detailed logging
       if (!response.ok) {
-        throw new Error('Failed to get response from assistant');
+        const errorText = await response.text();
+        console.error(`Server error (${response.status}): ${errorText}`);
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
+      console.log("Received AI response:", data);
       
       if (data.success) {
+        // Update tracked preferences if we got new ones
+        if (data.preferences) {
+          setUserPreferences(prev => ({
+            ...prev,
+            ...data.preferences,
+            // Merge arrays properly
+            colors: [...(prev.colors || []), ...(data.preferences.colors || [])].filter((v, i, a) => a.indexOf(v) === i)
+          }));
+          
+          // Add topic to history if we identified a category
+          if (data.preferences.category && !topicHistory.includes(data.preferences.category)) {
+            setTopicHistory(prev => [...prev, data.preferences.category]);
+          }
+        }
+        
+        // Track newly shown product IDs 
+        if (data.products && data.products.length > 0) {
+          const newProductIds = data.products.map((p: ProductRecommendation) => p.id);
+          setShownProductIds(prev => [...prev, ...newProductIds]);
+        }
+        
         // Add bot message with all available data
         const botMessage: Message = {
           id: Date.now().toString(),
           content: data.response,
           sender: "bot",
           timestamp: new Date(),
-          recommendations: data.recommendations || [],
+          recommendations: data.products || [], // Map products to recommendations
           priceAlternatives: data.priceAlternatives,
           complementaryItems: data.complementaryItems,
           followUpQuestions: data.followUpQuestions || []
@@ -247,9 +312,9 @@ export function ChatBot() {
         ]);
         
         // Update context for future messages - store product ID if we got recommendations
-        if (data.recommendations && data.recommendations.length > 0) {
+        if (data.products && data.products.length > 0) {
           setContextData({
-            productId: data.recommendations[0].id
+            productId: data.products[0].id
           });
         }
       } else {
@@ -266,10 +331,10 @@ export function ChatBot() {
     } catch (error) {
       console.error('Error communicating with assistant:', error);
       
-      // Add error message
+      // Add error message with more details for debugging
       const errorMessage: Message = {
         id: Date.now().toString(),
-        content: "I'm having trouble connecting to our system. Please try again later.",
+        content: `I'm having trouble connecting to our system. Please try again later.`,
         sender: "bot",
         timestamp: new Date(),
       };
@@ -305,7 +370,7 @@ export function ChatBot() {
   };
 
   const handleReset = () => {
-    // Reset local state
+    // Reset all local state
     setMessages([
       {
         id: "welcome-reset",
@@ -317,6 +382,9 @@ export function ChatBot() {
     setConversationHistory([]);
     setContextData({});
     setShowSuggestions(true);
+    setShownProductIds([]); // Reset the product history
+    setTopicHistory([]); // Reset topic history
+    setUserPreferences({}); // Reset accumulated preferences
     
     // Reset server context
     resetChatContext();

@@ -4,9 +4,9 @@ import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
 import RoomPlanner3D from "./room-planner-3d"
-import ViewTransition from "../../components/./view-transition"
+import ViewTransition from "../../../components/view-transition"
 const API_URL = "http://localhost:5000/api"
-
+import { useTheme } from "../../../components/contexts/theme-context"
 // Types
 interface Vertex {
   x: number
@@ -129,39 +129,39 @@ const RecommendationsPanel = ({
 // Furniture Panel Component
 const FurniturePanel = ({ addFurniture }: { addFurniture: (type: string) => void }) => {
   const FURNITURE_ITEMS = [
-    { id: "Bed", label: "Bed", bgColor: "bg-blue-300", icon: "🛏️" },
-    { id: "Desk", label: "Desk", bgColor: "bg-amber-700", icon: "🪑" },
-    { id: "Nightstand", label: "Nightstand", bgColor: "bg-amber-600", icon: "🗄️" },
-    { id: "Rug", label: "Rug", bgColor: "bg-amber-400", icon: "🧵" },
-    { id: "Dresser", label: "Dresser", bgColor: "bg-amber-800", icon: "🗄️" },
-    { id: "Chair", label: "Chair", bgColor: "bg-amber-600", icon: "🪑" },
-    { id: "TV", label: "TV", bgColor: "bg-gray-800", icon: "📺" },
-    { id: "Lamp", label: "Lamp", bgColor: "bg-amber-300", icon: "💡" },
-    { id: "Door", label: "Door", bgColor: "bg-amber-700", icon: "🚪" },
-    { id: "Window", label: "Window", bgColor: "bg-sky-300", icon: "🪟" },
-    { id: "Sofa", label: "Sofa", bgColor: "bg-blue-400", icon: "🛋️" },
-    { id: "Coffee Table", label: "Coffee Table", bgColor: "bg-amber-500", icon: "🪑" },
-    { id: "Plant", label: "Plant", bgColor: "bg-green-500", icon: "🪴" },
-    { id: "Bookshelf", label: "Bookshelf", bgColor: "bg-amber-900", icon: "📚" },
+    { id: "Bed", label: "Bed", bgColor: "bg-blue-300 dark:bg-blue-800", icon: "🛏️" },
+    { id: "Desk", label: "Desk", bgColor: "bg-amber-700 dark:bg-amber-800", icon: "🪑" },
+    { id: "Nightstand", label: "Nightstand", bgColor: "bg-amber-600 dark:bg-amber-700", icon: "🗄️" },
+    { id: "Rug", label: "Rug", bgColor: "bg-amber-400 dark:bg-amber-600", icon: "🧵" },
+    { id: "Dresser", label: "Dresser", bgColor: "bg-amber-800 dark:bg-amber-900", icon: "🗄️" },
+    { id: "Chair", label: "Chair", bgColor: "bg-amber-600 dark:bg-amber-700", icon: "🪑" },
+    { id: "TV", label: "TV", bgColor: "bg-gray-800 dark:bg-gray-900", icon: "📺" },
+    { id: "Lamp", label: "Lamp", bgColor: "bg-amber-300 dark:bg-amber-500", icon: "💡" },
+    { id: "Door", label: "Door", bgColor: "bg-amber-700 dark:bg-amber-800", icon: "🚪" },
+    { id: "Window", label: "Window", bgColor: "bg-sky-300 dark:bg-sky-700", icon: "🪟" },
+    { id: "Sofa", label: "Sofa", bgColor: "bg-blue-400 dark:bg-blue-700", icon: "🛋️" },
+    { id: "Coffee Table", label: "Coffee Table", bgColor: "bg-amber-500 dark:bg-amber-700", icon: "🪑" },
+    { id: "Plant", label: "Plant", bgColor: "bg-green-500 dark:bg-green-700", icon: "🪴" },
+    { id: "Bookshelf", label: "Bookshelf", bgColor: "bg-amber-900 dark:bg-amber-950", icon: "📚" },
   ]
 
   return (
-    <div className="w-64 bg-gray-50 border-r border-gray-200 overflow-y-auto">
+    <div className="w-64 bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
       <div className="p-4">
-        <h2 className="text-lg font-medium text-gray-800 mb-4">Furniture</h2>
+        <h2 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4">Furniture</h2>
 
         <div className="grid grid-cols-2 gap-3">
           {FURNITURE_ITEMS.map((item) => (
             <div
               key={item.id}
               onClick={() => addFurniture(item.id)}
-              className="bg-white rounded-md shadow-sm hover:shadow-md transition cursor-pointer overflow-hidden"
+              className="bg-white dark:bg-gray-700 rounded-md shadow-sm hover:shadow-md transition cursor-pointer overflow-hidden"
             >
               <div className={`h-16 ${item.bgColor} flex items-center justify-center`}>
                 <span className="text-3xl">{item.icon}</span>
               </div>
               <div className="px-2 py-1 text-center">
-                <span className="text-xs font-medium text-gray-700">{item.label}</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{item.label}</span>
               </div>
             </div>
           ))}
@@ -200,21 +200,43 @@ const ControlPanel = ({
   toggle3DView: () => void
 }) => {
   const [isEditing, setIsEditing] = useState(false)
+  const { theme, toggleTheme } = useTheme()
 
   // Common button style classes
   const baseButtonClasses =
     "px-3 py-2 rounded-md transition-all duration-200 flex items-center gap-2 text-sm font-medium"
-  const primaryButtonClasses = `${baseButtonClasses} bg-blue-600 hover:bg-blue-700 text-white`
-  const secondaryButtonClasses = `${baseButtonClasses} bg-white border border-gray-300 hover:bg-gray-50 text-gray-700`
-  const activeButtonClasses = `${baseButtonClasses} bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300`
-  const dangerButtonClasses = `${baseButtonClasses} bg-red-100 text-red-700 hover:bg-red-200 border border-red-200`
-  const successButtonClasses = `${baseButtonClasses} bg-green-600 hover:bg-green-700 text-white`
+  const primaryButtonClasses = `${baseButtonClasses} bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-800`
+  const secondaryButtonClasses = `${baseButtonClasses} bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700`
+  const activeButtonClasses = `${baseButtonClasses} bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-800`
+  const dangerButtonClasses = `${baseButtonClasses} bg-red-100 text-red-700 hover:bg-red-200 border border-red-200 dark:bg-red-900 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-800`
+  const successButtonClasses = `${baseButtonClasses} bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-800`
 
   return (
-    <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+    <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10 dark:bg-gray-900 dark:border-gray-800">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          {/* Removed "Room Planner" text */}
+          {/* Theme toggle button */}
+          <button onClick={toggleTheme} className={secondaryButtonClasses}>
+            {theme === "light" ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                </svg>
+                Dark Mode
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Light Mode
+              </>
+            )}
+          </button>
 
           <button onClick={toggleGrid} className={showGrid ? activeButtonClasses : secondaryButtonClasses}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -280,13 +302,13 @@ const ControlPanel = ({
                   setIsEditing(false)
                 }
               }}
-              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200"
               autoFocus
             />
           ) : (
             <div
               onClick={() => setIsEditing(true)}
-              className="font-medium text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 cursor-pointer flex items-center gap-2"
+              className="font-medium text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 cursor-pointer flex items-center gap-2 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -315,7 +337,7 @@ const ControlPanel = ({
         </div>
 
         <div className="flex items-center space-x-2">
-          <span className="text-gray-700 text-sm font-medium">Corners:</span>
+          <span className="text-gray-700 text-sm font-medium dark:text-gray-300">Corners:</span>
           <button
             onClick={removeVertex}
             className={`${dangerButtonClasses} w-8 h-8 p-0 flex items-center justify-center`}
@@ -349,21 +371,23 @@ const DesignsPanel = ({
   const [isExpanded, setIsExpanded] = useState(false)
 
   return (
-    <div className={`bg-gray-50 border-l border-gray-200 transition-all duration-300 ${isExpanded ? "w-64" : "w-10"}`}>
+    <div
+      className={`bg-gray-50 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 ${isExpanded ? "w-64" : "w-10"}`}
+    >
       <div className="h-full flex flex-col">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center justify-center h-10 w-10 text-gray-500 hover:text-gray-700 transition"
+          className="flex items-center justify-center h-10 w-10 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
         >
           {isExpanded ? "›" : "‹"}
         </button>
 
         {isExpanded && (
           <div className="flex-1 p-4 overflow-y-auto">
-            <h2 className="text-lg font-medium text-gray-800 mb-4">Saved Designs</h2>
+            <h2 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4">Saved Designs</h2>
 
             {savedDesigns.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center mt-8">No saved designs yet</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-8">No saved designs yet</p>
             ) : (
               <div className="space-y-2">
                 {savedDesigns.map((design) => (
@@ -372,12 +396,12 @@ const DesignsPanel = ({
                     onClick={() => loadDesign(design.id)}
                     className={`p-3 rounded-md cursor-pointer transition ${
                       design.name === currentDesignName
-                        ? "bg-blue-50 border-l-4 border-blue-500"
-                        : "bg-white hover:bg-gray-100 border-l-4 border-transparent"
+                        ? "bg-blue-50 dark:bg-blue-900 border-l-4 border-blue-500"
+                        : "bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border-l-4 border-transparent"
                     }`}
                   >
-                    <div className="font-medium text-sm text-gray-800">{design.name}</div>
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className="font-medium text-sm text-gray-800 dark:text-gray-200">{design.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       {new Date(design.lastModified).toLocaleDateString()}
                     </div>
                   </div>
@@ -1849,7 +1873,7 @@ export default function RoomPlanner() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-gray-950">
       {/* Header/Control Panel */}
       <ControlPanel
         addVertex={addVertex}
@@ -1873,10 +1897,22 @@ export default function RoomPlanner() {
 
         {/* Canvas Area */}
         {!is3DView ? (
-          <div ref={containerRef} className="flex-1 relative bg-white overflow-auto transition-opacity duration-300">
-            <div className="absolute top-2 right-2 z-10 bg-white rounded-md shadow-md p-2 flex gap-2">
-              <button onClick={resetView} className="p-1 hover:bg-gray-100 rounded" title="Reset View">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <div
+            ref={containerRef}
+            className="flex-1 relative bg-white dark:bg-gray-900 overflow-auto transition-opacity duration-300"
+          >
+            <div className="absolute top-2 right-2 z-10 bg-white dark:bg-gray-800 rounded-md shadow-md p-2 flex gap-2">
+              <button
+                onClick={resetView}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                title="Reset View"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 dark:text-gray-300"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
                   <path
                     fillRule="evenodd"
                     d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"
@@ -1884,7 +1920,7 @@ export default function RoomPlanner() {
                   />
                 </svg>
               </button>
-              <div className="text-sm text-gray-500">{Math.round(scale * 100)}%</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{Math.round(scale * 100)}%</div>
             </div>
 
             <canvas
@@ -1898,8 +1934,8 @@ export default function RoomPlanner() {
             />
           </div>
         ) : (
-          <div ref={containerRef} className="flex-1 relative bg-white transition-opacity duration-300">
-            <div className="absolute top-2 right-2 z-10 bg-white rounded-md shadow-md p-2 flex gap-2">
+          <div ref={containerRef} className="flex-1 relative bg-white dark:bg-gray-900 transition-opacity duration-300">
+            <div className="absolute top-2 right-2 z-10 bg-white dark:bg-gray-800 rounded-md shadow-md p-2 flex gap-2">
               <button
                 onClick={() => {
                   // Reset camera view in 3D mode
@@ -1908,10 +1944,15 @@ export default function RoomPlanner() {
                     setRoom({ ...room })
                   }
                 }}
-                className="p-1 hover:bg-gray-100 rounded"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                 title="Reset Camera"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 dark:text-gray-300"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
                   <path
                     fillRule="evenodd"
                     d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"
@@ -1946,17 +1987,19 @@ export default function RoomPlanner() {
       {/* New Design Modal */}
       {showNewDesignModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Create New Design</h2>
-            <p className="text-gray-600 mb-4">Your current design will be saved before creating a new one.</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Create New Design</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Your current design will be saved before creating a new one.
+            </p>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">New Design Name</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Design Name</label>
               <input
                 type="text"
                 value={newDesignName}
                 onChange={(e) => setNewDesignName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
                 placeholder="Enter design name"
               />
             </div>
@@ -1964,7 +2007,7 @@ export default function RoomPlanner() {
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowNewDesignModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition"
               >
                 Cancel
               </button>
@@ -1972,7 +2015,9 @@ export default function RoomPlanner() {
                 onClick={createNewDesign}
                 disabled={!newDesignName.trim()}
                 className={`px-4 py-2 text-white rounded-md transition ${
-                  newDesignName.trim() ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-300 cursor-not-allowed"
+                  newDesignName.trim()
+                    ? "bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
+                    : "bg-blue-300 dark:bg-blue-900 cursor-not-allowed"
                 }`}
               >
                 Create
