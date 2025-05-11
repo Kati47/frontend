@@ -155,16 +155,12 @@ export default function RegisterPage() {
           <div className="flex flex-col rounded-2xl shadow-[0_5px_15px_rgba(11,48,147,0.1)] bg-white dark:bg-slate-800 overflow-hidden hover:shadow-[0_15px_20px_rgba(11,48,147,0.15)] transition-shadow duration-300">
             {/* Logo section with shadow to separate from form */}
             <div className="pt-8 pb-6 flex justify-center border-b border-slate-100 dark:border-slate-700">
-              <div className="rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(11,48,147,0.05)]">
-                <Image
-                  src="/lloo.jpeg"
-                  alt="Kadéa Design Logo"
-                  width={160}
-                  height={90}
-                  className="h-20 w-auto"
-                  priority
-                />
-              </div>
+               {/* Logo section */}
+                       <div className="pt-6 pb-4 flex items-center justify-center border-b border-slate-100 dark:border-slate-700">
+                         <Link href="/" className="flex items-center">
+                           <span className="text-xl font-bold text-[#0b3093] dark:text-[#5a89ff]">Kadéa Design</span>
+                         </Link>
+                       </div>
             </div>
             
             {/* Form section */}

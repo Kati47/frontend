@@ -9,15 +9,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
-import { ShoppingCart, Heart, Search, Menu, User, LogOut, Clock, Settings, Sun, Moon, Globe } from "lucide-react"
+import { ShoppingCart, Heart, Search, Menu, User, LogOut, Clock, Sun, Moon, Globe } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useTranslation, SUPPORTED_LANGUAGES } from "@/lib/i18n/client"
 
@@ -40,202 +37,153 @@ export default function UserHeader() {
     { name: t("order_history"), path: "/orders" },
     { name: t("common.cart"), path: "/cart" },
   ]
-  
-  // Function to retrieve the user ID from localStorage
-  const getUserIdFromLocalStorage = () => {
-    try {
-      const storedUserId = localStorage.getItem("userId") || ""
-      return storedUserId
-    } catch (err) {
-      console.error("Error accessing localStorage:", err)
-      return ""
-    }
-  }
 
-  // Check if user is logged in based on localStorage
   useEffect(() => {
-    const userId = getUserIdFromLocalStorage()
-    setIsLoggedIn(!!userId) // Convert to boolean
+    const userId = localStorage.getItem("userId") || ""
+    setIsLoggedIn(!!userId)
   }, [])
 
-  // Handle logout by clearing localStorage
   const handleLogout = () => {
-    // Show confirmation dialog
     if (window.confirm(t("logout_confirmation") || "Are you sure you want to log out?")) {
-      try {
-        localStorage.removeItem("userId")
-        setIsLoggedIn(false)
-        // Call your auth provider's logout if needed
-        if (logout) logout()
-        // Redirect to login page
-        router.push("/login")
-      } catch (err) {
-        console.error("Error logging out:", err)
-      }
+      localStorage.removeItem("userId")
+      setIsLoggedIn(false)
+      if (logout) logout()
+      router.push("/login")
     }
   }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-24 items-center justify-between">
+        {/* Left section */}
         <div className="flex items-center gap-6 md:gap-8 lg:gap-10">
+          {/* Mobile menu */}
           <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-            <SheetTrigger asChild className="lg:hidden">
-              <Button variant="ghost" size="icon" className="md:hidden">
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="lg:hidden">
                 <Menu className="h-5 w-5" />
-                <span className="sr-only">{t("toggle_menu")}</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[300px] sm:w-[400px]">
-              <div className="flex flex-col h-full">
-                {/* Logo section with reduced size and improved scaling */}
-                <div className="pt-8 pb-6 flex justify-center border-b border-slate-100 dark:border-slate-700">
-                  <div className="rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(11,48,147,0.05)] w-72 h-56 flex items-center justify-center">
-                    {/* Simplified img tag with better size control */}
-                    <img
-                      src={imgSrc}
-                      alt="Kadéa Design Logo"
-                      style={{ 
-                        maxWidth: '95%',  
-                        maxHeight: '95%',
-                        objectFit: 'contain'
-                      }}
-                      onError={() => setImgSrc("/fallback-logo.png")}
-                    />
-                  </div>
-                </div>
+            <SheetContent side="left" className="w-[300px] sm:w-[400px] flex flex-col">
+              <div className="pt-6 pb-4 flex items-center justify-center border-b border-slate-100 dark:border-slate-700">
+                <Link href="/" className="text-xl font-bold text-[#0b3093] dark:text-[#5a89ff]">
+                  Kadéa Design
+                </Link>
+              </div>
 
-                {user && (
-                  <div className="py-4 border-b">
-                    <div className="flex items-center gap-4">
-                      <Avatar>
-                        <AvatarImage src={user.avatar} alt={user.name} />
-                        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
-                      </div>
+              {user && (
+                <div className="py-4 border-b">
+                  <div className="flex items-center gap-4">
+                    <Avatar>
+                      <AvatarImage src={user.avatar || ""} alt={user.name || "User"} />
+                      <AvatarFallback>{user.name?.charAt(0) || "U"}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{user.name}</p>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                <nav className="flex flex-col gap-1 py-4">
-                  {routes.map((route) => (
-                    <SheetClose asChild key={route.path}>
-                      <Link
-                        href={route.path}
-                        className={cn(
-                          "flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md",
-                          pathname === route.path
-                            ? "bg-primary/10 text-primary"
-                            : "text-muted-foreground hover:bg-muted",
-                        )}
-                      >
-                        {route.name}
+              <nav className="flex flex-col gap-1 py-4">
+                {routes.map((route) => (
+                  <SheetClose asChild key={route.path}>
+                    <Link
+                      href={route.path}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md",
+                        pathname === route.path
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted",
+                      )}
+                    >
+                      {route.name}
+                    </Link>
+                  </SheetClose>
+                ))}
+              </nav>
+
+              <div className="mt-auto border-t py-4">
+                {/* Language switcher */}
+                <div className="px-4 mb-4">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                        <Globe className="h-4 w-4" />
+                        {SUPPORTED_LANGUAGES[locale as keyof typeof SUPPORTED_LANGUAGES]?.name}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {Object.entries(SUPPORTED_LANGUAGES).map(([code, { name, flag }]) => (
+                        <DropdownMenuItem
+                          key={code}
+                          onClick={() => changeLocale(code)}
+                          className={locale === code ? "bg-muted font-medium" : ""}
+                        >
+                          <span className="mr-2">{flag}</span>
+                          <span>{name}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                {isLoggedIn ? (
+                  <>
+                    <SheetClose asChild>
+                      <Link href="/orders" className="flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted">
+                        <Clock className="h-5 w-5" />
+                        {t("order_history")}
                       </Link>
                     </SheetClose>
-                  ))}
-                </nav>
-
-                <div className="border-t py-4 mt-auto">
-                  <div className="px-4 mb-4 flex items-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                          <Globe className="h-4 w-4" />
-                          <span>{SUPPORTED_LANGUAGES[locale as keyof typeof SUPPORTED_LANGUAGES]?.name}</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        {Object.entries(SUPPORTED_LANGUAGES).map(([code, { name, flag }]) => (
-                          <DropdownMenuItem 
-                            key={code} 
-                            onClick={() => changeLocale(code)}
-                            className={locale === code ? "bg-muted font-medium" : ""}
-                          >
-                            <span className="mr-2">{flag}</span>
-                            <span>{name}</span>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  
-                  {/* Use isLoggedIn state instead of user */}
-                  {isLoggedIn ? (
-                    <>
-                      <SheetClose asChild>
-                        <Link
-                          href="/orders"
-                          className="flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted"
-                        >
-                          <Clock className="h-5 w-5" />
-                          {t("order_history")}
-                        </Link>
-                      </SheetClose>
-                      <SheetClose asChild>
-                        <Link
-                          href="/favorites"
-                          className="flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted"
-                        >
-                          <Heart className="h-5 w-5" />
-                          {t("favorites")}
-                        </Link>
-                      </SheetClose>
-                      {/* Profile link removed */}
-                      <button
-                        onClick={() => {
-                          setIsMenuOpen(false)
-                          handleLogout()
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted"
-                      >
-                        <LogOut className="h-5 w-5" />
-                        {t("logout")}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <SheetClose asChild>
-                        <Link
-                          href="/login"
-                          className="flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted"
-                        >
-                          {t("login")}
-                        </Link>
-                      </SheetClose>
-                      <SheetClose asChild>
-                        <Link
-                          href="/register"
-                          className="flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted"
-                        >
-                          {t("register")}
-                        </Link>
-                      </SheetClose>
-                    </>
-                  )}
-                </div>
+                    <SheetClose asChild>
+                      <Link href="/favorites" className="flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted">
+                        <Heart className="h-5 w-5" />
+                        {t("favorites")}
+                      </Link>
+                    </SheetClose>
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false)
+                        handleLogout()
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted"
+                    >
+                      <LogOut className="h-5 w-5" />
+                      {t("logout")}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <SheetClose asChild>
+                      <Link href="/login" className="flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted">
+                        {t("login")}
+                      </Link>
+                    </SheetClose>
+                    <SheetClose asChild>
+                      <Link href="/register" className="flex items-center gap-2 px-4 py-2 text-base font-medium rounded-md text-muted-foreground hover:bg-muted">
+                        {t("register")}
+                      </Link>
+                    </SheetClose>
+                  </>
+                )}
               </div>
             </SheetContent>
           </Sheet>
 
-          {/* Main navbar logo with larger dimensions */}
+          {/* Logo */}
           <Link href="/" className="flex items-center">
             <div className="w-32 h-24 overflow-hidden flex items-center justify-center">
-              <img
-                src={imgSrc}
-                alt="Logo"
-                style={{ 
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  objectFit: 'contain'
-                }}
-                onError={() => setImgSrc("/fallback-logo.png")}
-              />
+             <div className="pt-6 pb-4 flex items-center justify-center border-b border-slate-100 dark:border-slate-700">
+      <Link href="/" className="flex items-center">
+        <span className="text-xl font-bold text-[#0b3093] dark:text-[#5a89ff]">Kadéa Design</span>
+      </Link>
+    </div>
             </div>
           </Link>
 
+          {/* Desktop navigation */}
           <nav className="hidden md:flex items-center gap-6">
             {routes.map((route) => (
               <Link
@@ -252,19 +200,20 @@ export default function UserHeader() {
           </nav>
         </div>
 
-       
+        {/* Right section */}
         <div className="flex items-center gap-4">
+          {/* Language Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="hidden md:flex items-center gap-2">
                 <Globe className="h-4 w-4" />
-                <span>{SUPPORTED_LANGUAGES[locale as keyof typeof SUPPORTED_LANGUAGES]?.name}</span>
+                {SUPPORTED_LANGUAGES[locale as keyof typeof SUPPORTED_LANGUAGES]?.name}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {Object.entries(SUPPORTED_LANGUAGES).map(([code, { name, flag }]) => (
-                <DropdownMenuItem 
-                  key={code} 
+                <DropdownMenuItem
+                  key={code}
                   onClick={() => changeLocale(code)}
                   className={locale === code ? "bg-muted font-medium" : ""}
                 >
@@ -274,84 +223,16 @@ export default function UserHeader() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        
+
+          {/* Theme toggle */}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="relative"
           >
-            <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-            <span className="sr-only">{t("toggle_theme")}</span>
+            {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
-
-          <Button variant="ghost" size="icon" className="md:hidden">
-            <Search className="h-5 w-5" />
-            <span className="sr-only">{t("search")}</span>
-          </Button>
-
-          <Link href="/favorites">
-            <Button variant="ghost" size="icon" className="relative">
-              <Heart className="h-5 w-5" />
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center">
-                3
-              </Badge>
-              <span className="sr-only">{t("favorites")}</span>
-            </Button>
-          </Link>
-
-          <Link href="/cart">
-            <Button variant="ghost" size="icon" className="relative">
-              <ShoppingCart className="h-5 w-5" />
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center">
-                2
-              </Badge>
-              <span className="sr-only">{t("cart")}</span>
-            </Button>
-          </Link>
-
-          {/* Check for isLoggedIn instead of user */}
-          {isLoggedIn ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <Avatar className="h-8 w-8">
-                    {user && <AvatarImage src={user.avatar} alt={user.name} />}
-                    <AvatarFallback>{user ? user.name.charAt(0) : "U"}</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>{t("my_account")}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {/* Profile link removed */}
-                <DropdownMenuItem asChild>
-                  <Link href="/orders" className="flex items-center gap-2 cursor-pointer">
-                    <Clock className="h-4 w-4" />
-                    {t("order_history")}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/favorites" className="flex items-center gap-2 cursor-pointer">
-                    <Heart className="h-4 w-4" />
-                    {t("favorites")}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 cursor-pointer">
-                  <LogOut className="h-4 w-4" />
-                  {t("logout")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <Link href="/login">
-              <Button variant="ghost" size="sm">
-                {t("login")}
-              </Button>
-            </Link>
-          )}
         </div>
       </div>
     </header>
